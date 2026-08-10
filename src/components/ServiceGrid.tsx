@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 import { StatusDot } from "./StatusDot";
-import { useServiceStatus } from "./useServiceStatus";
 import { UNKNOWN, type MonitorHealth } from "@/lib/status/types";
 
 /**
@@ -26,9 +25,14 @@ export type ClientCategory = {
   services: ClientService[];
 };
 
-export function ServiceGrid({ categories }: { categories: ClientCategory[] }) {
-  const { statuses } = useServiceStatus();
-
+export function ServiceGrid({
+  categories,
+  statuses,
+}: {
+  categories: ClientCategory[];
+  /** Supplied by LiveArea, which owns the single poll for the page. */
+  statuses: Record<string, MonitorHealth>;
+}) {
   if (categories.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-surface-border px-4 py-8 text-center text-sm text-slate-400">

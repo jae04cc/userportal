@@ -22,6 +22,8 @@ export const SETTING_KEYS = {
   kumaBaseUrl: "kuma_base_url",
   kumaStatusSlug: "kuma_status_slug",
   kumaShowUptime: "kuma_show_uptime",
+  /** Show the response-time figure on status pane tiles. */
+  statusPaneShowPing: "status_pane_show_ping",
 
   oidcIssuer: "oidc_issuer",
   oidcClientId: "oidc_client_id",

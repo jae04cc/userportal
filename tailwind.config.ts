@@ -13,11 +13,16 @@ const config: Config = {
           hover: "#1a232e",
           border: "#243040",
         },
+        // Reserved status palette — never reused for anything decorative.
+        // Validated against both portal surfaces (#0b0f14 page, #131a23 tile):
+        // all four clear 3:1 contrast, and CVD/normal-vision separation pass.
+        // Every use is paired with a text label, so colour never carries the
+        // meaning alone.
         status: {
-          up: "#34d399",
-          down: "#f87171",
-          degraded: "#fbbf24",
-          unknown: "#64748b",
+          up: "#0ca30c", // good
+          degraded: "#fab219", // warning
+          down: "#d03b3b", // critical
+          unknown: "#898781", // muted — "no data", deliberately achromatic
         },
       },
     },

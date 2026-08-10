@@ -4,9 +4,12 @@ import {
   parseKumaResponses,
   parseKumaMonitors,
   parseKumaTime,
+  inferIntervalMs,
+  staleThresholdMs,
   type KumaHeartbeatResponse,
   type KumaStatusPageResponse,
 } from "./kuma";
+import { HISTORY_LENGTH } from "./types";
 
 const NOW = Date.parse("2026-08-08T12:00:00Z");
 const recent = new Date(NOW - 30_000).toISOString();
@@ -167,6 +170,182 @@ describe("parseKumaResponses", () => {
       NOW
     );
     expect(result.get("Broken")?.status).toBe("unknown");
+  });
+});
+
+describe("staleness scales to the monitor's own check interval", () => {
+  /** Builds `count` beats ending `endedMinsAgo` minutes ago, `intervalMins` apart. */
+  function beats(count: number, intervalMins: number, endedMinsAgo: number) {
+    return Array.from({ length: count }, (_, i) => ({
+      status: 1,
+      time: new Date(NOW - (endedMinsAgo + (count - 1 - i) * intervalMins) * 60_000).toISOString(),
+    }));
+  }
+
+  it("infers the interval from the median gap", () => {
+    const times = [0, 1800_000, 3600_000, 5400_000];
+    expect(inferIntervalMs(times)).toBe(1800_000);
+  });
+
+  it("uses the median so one outage gap doesn't inflate the estimate", () => {
+    const times = [0, 60_000, 120_000, 7_200_000, 7_260_000, 7_320_000];
+    expect(inferIntervalMs(times)).toBe(60_000);
+  });
+
+  it("returns null when there aren't enough beats to tell", () => {
+    expect(inferIntervalMs([])).toBeNull();
+    expect(inferIntervalMs([123])).toBeNull();
+  });
+
+  it("never calls a fast monitor stale sooner than the floor", () => {
+    // 2.5 x 20s would be 50s — one missed check shouldn't flip it to unknown.
+    expect(staleThresholdMs(20_000)).toBe(5 * 60_000);
+  });
+
+  it("scales the window up for a slow monitor", () => {
+    expect(staleThresholdMs(30 * 60_000)).toBe(75 * 60_000);
+  });
+
+  it("caps the window so a truly dead monitor still goes unknown", () => {
+    expect(staleThresholdMs(30 * 24 * 60 * 60_000)).toBe(24 * 60 * 60_000);
+  });
+
+  it("keeps a 30-minute monitor UP when its last beat is 20 minutes old", () => {
+    // The real-world case this was written for: a 30-minute check interval with
+    // a beat 0.7 intervals old is healthy, but a flat 10-minute threshold
+    // reported it as unknown.
+    const result = parseKumaResponses(
+      page([{ id: 1, name: "Slow" }]),
+      { heartbeatList: { "1": beats(10, 30, 20) } },
+      NOW
+    );
+    expect(result.get("Slow")!.status).toBe("up");
+  });
+
+  it("still marks that same monitor unknown once it misses several checks", () => {
+    const result = parseKumaResponses(
+      page([{ id: 1, name: "Slow" }]),
+      { heartbeatList: { "1": beats(10, 30, 120) } },
+      NOW
+    );
+    expect(result.get("Slow")!.status).toBe("unknown");
+  });
+
+  it("marks a fast monitor unknown when it goes quiet for far longer than its interval", () => {
+    const result = parseKumaResponses(
+      page([{ id: 1, name: "Fast" }]),
+      { heartbeatList: { "1": beats(10, 1, 30) } },
+      NOW
+    );
+    expect(result.get("Fast")!.status).toBe("unknown");
+  });
+
+  it("keeps a fast monitor up across a single missed check", () => {
+    const result = parseKumaResponses(
+      page([{ id: 1, name: "Fast" }]),
+      { heartbeatList: { "1": beats(10, 1, 2) } },
+      NOW
+    );
+    expect(result.get("Fast")!.status).toBe("up");
+  });
+});
+
+describe("heartbeat history (drives the status pane's strip)", () => {
+  it("returns beats oldest-first, matching left-to-right render order", () => {
+    const result = parseKumaResponses(
+      page([{ id: 1, name: "A" }]),
+      {
+        heartbeatList: {
+          "1": [
+            { status: 0, time: recent },
+            { status: 1, time: recent },
+          ],
+        },
+      },
+      NOW
+    );
+    const history = result.get("A")!.history;
+    expect(history.map((b) => b.status)).toEqual(["down", "up"]);
+  });
+
+  it("trims to the strip length rather than returning all 100 beats", () => {
+    const many = Array.from({ length: 100 }, () => ({ status: 1, time: recent }));
+    const result = parseKumaResponses(
+      page([{ id: 1, name: "A" }]),
+      { heartbeatList: { "1": many } },
+      NOW
+    );
+    expect(result.get("A")!.history).toHaveLength(HISTORY_LENGTH);
+  });
+
+  it("keeps the MOST RECENT beats when trimming", () => {
+    const beats = [
+      ...Array.from({ length: 60 }, () => ({ status: 0, time: recent })),
+      ...Array.from({ length: HISTORY_LENGTH }, () => ({ status: 1, time: recent })),
+    ];
+    const result = parseKumaResponses(
+      page([{ id: 1, name: "A" }]),
+      { heartbeatList: { "1": beats } },
+      NOW
+    );
+    expect(result.get("A")!.history.every((b) => b.status === "up")).toBe(true);
+  });
+
+  it("carries ping per beat and null when absent", () => {
+    const result = parseKumaResponses(
+      page([{ id: 1, name: "A" }]),
+      { heartbeatList: { "1": [{ status: 1, time: recent, ping: 42 }, { status: 1, time: recent }] } },
+      NOW
+    );
+    const history = result.get("A")!.history;
+    expect(history[0].ping).toBe(42);
+    expect(history[1].ping).toBeNull();
+  });
+
+  it("exposes the latest ping at the top level", () => {
+    const result = parseKumaResponses(
+      page([{ id: 1, name: "A" }]),
+      { heartbeatList: { "1": [{ status: 1, time: recent, ping: 12 }, { status: 1, time: recent, ping: 88 }] } },
+      NOW
+    );
+    expect(result.get("A")!.ping).toBe(88);
+  });
+
+  it("suppresses the ping figure when the data is stale", () => {
+    // A stale monitor reports unknown; showing its last ping would imply the
+    // number is current.
+    const result = parseKumaResponses(
+      page([{ id: 1, name: "A" }]),
+      { heartbeatList: { "1": [{ status: 1, time: stale, ping: 42 }] } },
+      NOW
+    );
+    expect(result.get("A")!.status).toBe("unknown");
+    expect(result.get("A")!.ping).toBeNull();
+  });
+
+  it("still returns the history for a stale monitor, so the strip shows what happened", () => {
+    const result = parseKumaResponses(
+      page([{ id: 1, name: "A" }]),
+      { heartbeatList: { "1": [{ status: 1, time: stale }] } },
+      NOW
+    );
+    expect(result.get("A")!.history).toHaveLength(1);
+  });
+
+  it("marks a beat with a non-numeric status as unknown rather than dropping it", () => {
+    const result = parseKumaResponses(
+      page([{ id: 1, name: "A" }]),
+      { heartbeatList: { "1": [{ time: recent } as never, { status: 1, time: recent }] } },
+      NOW
+    );
+    const history = result.get("A")!.history;
+    expect(history).toHaveLength(2);
+    expect(history[0].status).toBe("unknown");
+  });
+
+  it("is empty when there are no heartbeats", () => {
+    const result = parseKumaResponses(page([{ id: 1, name: "A" }]), { heartbeatList: {} }, NOW);
+    expect(result.get("A")!.history).toEqual([]);
   });
 });
 

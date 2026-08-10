@@ -1,9 +1,11 @@
-import type {
-  DiscoveredMonitor,
-  MonitorHealth,
-  ServiceStatus,
-  StatusMap,
-  StatusProvider,
+import {
+  HISTORY_LENGTH,
+  type Beat,
+  type DiscoveredMonitor,
+  type MonitorHealth,
+  type ServiceStatus,
+  type StatusMap,
+  type StatusProvider,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -27,7 +29,7 @@ const KUMA_PENDING = 2;
 const KUMA_MAINTENANCE = 3;
 
 type KumaMonitor = { id: number; name: string };
-type KumaHeartbeat = { status: number; time: string };
+type KumaHeartbeat = { status: number; time: string; ping?: number | null };
 
 export type KumaStatusPageResponse = {
   publicGroupList?: Array<{ name?: string; monitorList?: KumaMonitor[] }>;
@@ -59,8 +61,52 @@ export function mapKumaStatus(code: number): ServiceStatus {
   }
 }
 
-/** A heartbeat this old means Kuma itself has stopped checking — not a real "up". */
-const STALE_AFTER_MS = 10 * 60_000;
+// ---------------------------------------------------------------------------
+// Staleness
+//
+// A heartbeat is "stale" when Kuma has evidently stopped checking — reporting
+// the last known state as current would be a lie. But how old is too old
+// depends entirely on the monitor's check interval: 15 minutes is alarming for
+// a 60-second monitor and completely normal for a 30-minute one.
+//
+// So the interval is inferred from the spacing of the beats themselves, rather
+// than assumed. A fixed threshold marks every long-interval monitor unknown.
+// ---------------------------------------------------------------------------
+
+/** Tolerate this many missed checks before calling it stale. */
+const STALE_INTERVAL_MULTIPLIER = 2.5;
+/** Never call something stale sooner than this, however fast it checks. */
+const STALE_FLOOR_MS = 5 * 60_000;
+/** However slow the monitor, silence beyond this is stale. */
+const STALE_CEILING_MS = 24 * 60 * 60_000;
+/** Used when the interval can't be inferred (fewer than two beats). */
+const STALE_FALLBACK_MS = 30 * 60_000;
+
+/**
+ * Median gap between consecutive beats, in ms. The median rather than the mean
+ * so a single outage gap doesn't inflate the estimate.
+ */
+export function inferIntervalMs(times: number[]): number | null {
+  const valid = times.filter((t) => Number.isFinite(t));
+  if (valid.length < 2) return null;
+
+  const gaps: number[] = [];
+  for (let i = 1; i < valid.length; i += 1) {
+    const gap = valid[i] - valid[i - 1];
+    if (gap > 0) gaps.push(gap);
+  }
+  if (gaps.length === 0) return null;
+
+  gaps.sort((a, b) => a - b);
+  return gaps[Math.floor(gaps.length / 2)];
+}
+
+/** How old the newest beat may be before the monitor counts as stale. */
+export function staleThresholdMs(intervalMs: number | null): number {
+  if (intervalMs === null) return STALE_FALLBACK_MS;
+  const scaled = intervalMs * STALE_INTERVAL_MULTIPLIER;
+  return Math.min(Math.max(scaled, STALE_FLOOR_MS), STALE_CEILING_MS);
+}
 
 /**
  * Kuma emits naive timestamps ("2026-08-08 12:00:00") in the status page's
@@ -114,19 +160,33 @@ export function parseKumaResponses(
     let health: MonitorHealth;
 
     if (!Array.isArray(list) || list.length === 0) {
-      health = { status: "unknown", uptime24h, lastCheckAt: null };
+      health = { status: "unknown", uptime24h, lastCheckAt: null, ping: null, history: [] };
     } else {
+      // Oldest-first, trimmed to the strip length the pane renders.
+      const history: Beat[] = list.slice(-HISTORY_LENGTH).map((beat) => ({
+        status: typeof beat?.status === "number" ? mapKumaStatus(beat.status) : "unknown",
+        ping: typeof beat?.ping === "number" && Number.isFinite(beat.ping) ? beat.ping : null,
+        at: beat?.time ? parseKumaTime(beat.time) : null,
+      }));
+
       const latest = list[list.length - 1];
       const lastCheckAt = latest ? parseKumaTime(latest.time) : null;
+      const ping =
+        typeof latest?.ping === "number" && Number.isFinite(latest.ping) ? latest.ping : null;
 
-      if (!latest || typeof latest.status !== "number") {
-        health = { status: "unknown", uptime24h, lastCheckAt };
-      } else if (lastCheckAt !== null && now - lastCheckAt > STALE_AFTER_MS) {
-        // Kuma has stopped checking this monitor — don't report a stale "up".
-        health = { status: "unknown", uptime24h, lastCheckAt };
-      } else {
-        health = { status: mapKumaStatus(latest.status), uptime24h, lastCheckAt };
-      }
+      // Scale the staleness window to this monitor's own cadence.
+      const interval = inferIntervalMs(history.map((b) => b.at ?? NaN));
+      const stale = lastCheckAt !== null && now - lastCheckAt > staleThresholdMs(interval);
+      const usable = latest && typeof latest.status === "number" && !stale;
+
+      health = {
+        // Kuma having stopped checking is not a real "up" — report unknown.
+        status: usable ? mapKumaStatus(latest.status) : "unknown",
+        uptime24h,
+        lastCheckAt,
+        ping: usable ? ping : null,
+        history,
+      };
     }
 
     result.set(key, health);

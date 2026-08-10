@@ -14,6 +14,7 @@ const POLL_INTERVAL_MS = 30_000;
  */
 export function useServiceStatus() {
   const [statuses, setStatuses] = useState<Record<string, MonitorHealth>>({});
+  const [pane, setPane] = useState<Record<string, MonitorHealth>>({});
   const [hasLoaded, setHasLoaded] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -31,10 +32,15 @@ export function useServiceStatus() {
         // 401 means the session expired; everything else is a server-side
         // problem. Either way the indicators go unknown rather than erroring.
         setStatuses({});
+        setPane({});
         return;
       }
-      const body = (await res.json()) as { statuses: Record<string, MonitorHealth> };
+      const body = (await res.json()) as {
+        statuses: Record<string, MonitorHealth>;
+        pane: Record<string, MonitorHealth>;
+      };
       setStatuses(body.statuses ?? {});
+      setPane(body.pane ?? {});
     } catch {
       // Aborted or offline — keep the last known values rather than flashing.
     } finally {
@@ -75,5 +81,5 @@ export function useServiceStatus() {
     };
   }, [fetchStatuses]);
 
-  return { statuses, hasLoaded };
+  return { statuses, pane, hasLoaded };
 }

@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 const TABS = [
   { href: "/admin", label: "MOTD" },
   { href: "/admin/services", label: "Services" },
+  { href: "/admin/status-pane", label: "Status pane" },
   { href: "/admin/monitoring", label: "Monitoring" },
   { href: "/admin/authentication", label: "Authentication" },
   { href: "/admin/groups", label: "Groups" },

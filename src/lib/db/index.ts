@@ -122,6 +122,25 @@ export async function runMigrations() {
       PRIMARY KEY (service_id, group_id)
     );
 
+    CREATE TABLE IF NOT EXISTS status_items (
+      id TEXT PRIMARY KEY,
+      label TEXT NOT NULL,
+      monitor_key TEXT NOT NULL,
+      visibility TEXT NOT NULL DEFAULT 'all',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      is_enabled INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_status_items_order ON status_items(sort_order);
+
+    CREATE TABLE IF NOT EXISTS status_item_groups (
+      status_item_id TEXT NOT NULL REFERENCES status_items(id) ON DELETE CASCADE,
+      group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+      PRIMARY KEY (status_item_id, group_id)
+    );
+
     CREATE TABLE IF NOT EXISTS app_settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL

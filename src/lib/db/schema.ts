@@ -110,6 +110,48 @@ export const serviceGroups = sqliteTable(
   })
 );
 
+/**
+ * The slim status pane above the MOTD. Deliberately its own list rather than a
+ * flag on services: the things worth watching at a glance (internet, the NAS,
+ * the host) often aren't launchable services, and keeping it separate stops the
+ * pane growing to mirror a long service list.
+ *
+ * Visibility reuses the exact same three modes and the same pure resolver as
+ * services — see src/lib/visibility.ts.
+ */
+export const statusItems = sqliteTable(
+  "status_items",
+  {
+    id: text("id").primaryKey(),
+    label: text("label").notNull(),
+    /** Uptime Kuma monitor id (preferred) or name. Required — a tile is its monitor. */
+    monitorKey: text("monitor_key").notNull(),
+    visibility: text("visibility").$type<ServiceVisibility>().notNull().default("all"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isEnabled: integer("is_enabled", { mode: "boolean" }).notNull().default(true),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  },
+  (t) => ({
+    orderIdx: index("idx_status_items_order").on(t.sortOrder),
+  })
+);
+
+export const statusItemGroups = sqliteTable(
+  "status_item_groups",
+  {
+    statusItemId: text("status_item_id")
+      .notNull()
+      .references(() => statusItems.id, { onDelete: "cascade" }),
+    groupId: text("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.statusItemId, t.groupId] }),
+  })
+);
+
 export const appSettings = sqliteTable("app_settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
@@ -163,4 +205,16 @@ export const servicesRelations = relations(services, ({ one, many }) => ({
 export const serviceGroupsRelations = relations(serviceGroups, ({ one }) => ({
   service: one(services, { fields: [serviceGroups.serviceId], references: [services.id] }),
   group: one(groups, { fields: [serviceGroups.groupId], references: [groups.id] }),
+}));
+
+export const statusItemsRelations = relations(statusItems, ({ many }) => ({
+  statusItemGroups: many(statusItemGroups),
+}));
+
+export const statusItemGroupsRelations = relations(statusItemGroups, ({ one }) => ({
+  statusItem: one(statusItems, {
+    fields: [statusItemGroups.statusItemId],
+    references: [statusItems.id],
+  }),
+  group: one(groups, { fields: [statusItemGroups.groupId], references: [groups.id] }),
 }));
