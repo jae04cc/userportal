@@ -1,7 +1,7 @@
 import { requireUser } from "@/lib/authz";
 import { getVisibleServices, getMotd } from "@/lib/services";
 import { getVisibleStatusItems } from "@/lib/statusPane";
-import { getKumaConfig, getSetting, SETTING_KEYS } from "@/lib/settings";
+import { getKumaConfig, getSetting, getStatusPaneColumns, SETTING_KEYS } from "@/lib/settings";
 import { Motd } from "@/components/Motd";
 import { PortalHeader } from "@/components/PortalHeader";
 import { LiveArea } from "@/components/LiveArea";
@@ -18,12 +18,13 @@ export default async function HomePage() {
   // All of these hit local SQLite and are fast. Uptime Kuma is deliberately NOT
   // awaited here — the pane and grid must paint immediately and let status fill
   // in client-side, rather than blocking first paint on a possibly-slow upstream.
-  const [categories, motd, paneItems, kuma, showPingSetting] = await Promise.all([
+  const [categories, motd, paneItems, kuma, showPingSetting, paneColumns] = await Promise.all([
     getVisibleServices(user),
     getMotd(),
     getVisibleStatusItems(user),
     getKumaConfig(),
     getSetting(SETTING_KEYS.statusPaneShowPing),
+    getStatusPaneColumns(),
   ]);
 
   const clientCategories: ClientCategory[] = categories.map((category) => ({
@@ -64,6 +65,7 @@ export default async function HomePage() {
         paneItems={paneItems.map((item) => ({ id: item.id, label: item.label }))}
         categories={clientCategories}
         showPing={kuma.configured && showPingSetting !== "false"}
+        paneColumns={paneColumns}
         motd={<Motd markdown={motd} />}
       />
     </main>

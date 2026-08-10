@@ -1,17 +1,17 @@
 import { asc } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { groups, statusItems, statusItemGroups } from "@/lib/db/schema";
-import { Button, Panel } from "@/components/admin/ui";
+import { Button, Field, Panel, inputClass } from "@/components/admin/ui";
 import { StatusItemForm } from "@/components/admin/StatusItemForm";
 import { StatusPaneImport } from "@/components/admin/StatusPaneImport";
 import {
   createStatusItem,
   deleteStatusItem,
   moveStatusItem,
-  setShowPing,
+  setPaneLayout,
   updateStatusItem,
 } from "@/lib/actions/statusPane";
-import { getKumaConfig, getSetting, SETTING_KEYS } from "@/lib/settings";
+import { getKumaConfig, getSetting, getStatusPaneColumns, SETTING_KEYS } from "@/lib/settings";
 import { discoverMonitors } from "@/lib/status";
 
 export const dynamic = "force-dynamic";
@@ -25,12 +25,13 @@ const VISIBILITY_LABEL = {
 export default async function AdminStatusPanePage() {
   const kuma = await getKumaConfig();
 
-  const [items, allGroups, itemGroups, monitors, showPing] = await Promise.all([
+  const [items, allGroups, itemGroups, monitors, showPing, paneColumns] = await Promise.all([
     db.select().from(statusItems).orderBy(asc(statusItems.sortOrder), asc(statusItems.label)),
     db.select().from(groups).orderBy(asc(groups.name)),
     db.select().from(statusItemGroups),
     kuma.configured ? discoverMonitors() : Promise.resolve([]),
     getSetting(SETTING_KEYS.statusPaneShowPing),
+    getStatusPaneColumns(),
   ]);
 
   const groupsByItem = new Map<string, string[]>();
@@ -48,20 +49,42 @@ export default async function AdminStatusPanePage() {
         title="Status pane"
         description="A slim strip of tiles above the message of the day. Each tile is one Uptime Kuma monitor, with a heartbeat strip of its recent checks."
       >
-        <form action={setShowPing} className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-slate-400">
-            <input
-              type="checkbox"
-              name="showPing"
-              defaultChecked={showPing !== "false"}
-              className="h-4 w-4"
-            />
-            Show response time on each tile
-          </label>
-          <Button type="submit">Save</Button>
-          <span className="text-xs text-slate-600">
-            Turn this off for bars and uptime only.
-          </span>
+        <form action={setPaneLayout} className="grid gap-3 sm:grid-cols-2">
+          <Field
+            label="Columns"
+            htmlFor="pane-columns"
+            hint="More columns means a shorter pane. Always one column on phones."
+          >
+            <select
+              id="pane-columns"
+              name="columns"
+              defaultValue={String(paneColumns)}
+              className={inputClass}
+            >
+              <option value="1">One — full width</option>
+              <option value="2">Two</option>
+              <option value="3">Three</option>
+            </select>
+          </Field>
+
+          <div className="flex items-end">
+            <label className="flex items-center gap-2 text-sm text-slate-400">
+              <input
+                type="checkbox"
+                name="showPing"
+                defaultChecked={showPing !== "false"}
+                className="h-4 w-4"
+              />
+              Show response time
+              <span className="text-xs text-slate-600">(wide screens only)</span>
+            </label>
+          </div>
+
+          <div className="sm:col-span-2">
+            <Button type="submit" variant="primary">
+              Save layout
+            </Button>
+          </div>
         </form>
       </Panel>
 

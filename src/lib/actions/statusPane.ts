@@ -154,16 +154,22 @@ export async function moveStatusItem(form: FormData) {
   refresh();
 }
 
-export async function setShowPing(form: FormData) {
+/** Layout options for the pane: column count and whether ping is shown. */
+export async function setPaneLayout(form: FormData) {
   const actor = await requireAdminApi();
+
   const show = form.get("showPing") !== null;
+  const rawColumns = Number(str(form, "columns"));
+  const columns = rawColumns === 1 || rawColumns === 2 || rawColumns === 3 ? rawColumns : 2;
 
   await setSetting(SETTING_KEYS.statusPaneShowPing, show ? "true" : "false");
+  await setSetting(SETTING_KEYS.statusPaneColumns, String(columns));
+
   await recordAudit({
     actor,
     action: "update",
     entityType: "service",
-    summary: `${show ? "Showed" : "Hid"} response time on status pane tiles`,
+    summary: `Set status pane to ${columns} column(s), response time ${show ? "shown" : "hidden"}`,
   });
   refresh();
 }

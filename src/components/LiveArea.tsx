@@ -20,18 +20,25 @@ export function LiveArea({
   paneItems,
   categories,
   showPing,
+  paneColumns,
   motd,
 }: {
   paneItems: ClientStatusItem[];
   categories: ClientCategory[];
   showPing: boolean;
+  paneColumns: number;
   motd: ReactNode;
 }) {
   const { statuses, pane } = useServiceStatus();
 
   return (
     <>
-      <StatusPane items={paneItems} statuses={pane} showPing={showPing} />
+      <StatusPane
+        items={paneItems}
+        statuses={pane}
+        showPing={showPing}
+        columns={paneColumns}
+      />
       {motd}
       <div className="mt-8">
         <ServiceGrid categories={categories} statuses={statuses} />

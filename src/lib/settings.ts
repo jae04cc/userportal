@@ -24,6 +24,8 @@ export const SETTING_KEYS = {
   kumaShowUptime: "kuma_show_uptime",
   /** Show the response-time figure on status pane tiles. */
   statusPaneShowPing: "status_pane_show_ping",
+  /** How many tiles sit side by side: "1" | "2" | "3". */
+  statusPaneColumns: "status_pane_columns",
 
   oidcIssuer: "oidc_issuer",
   oidcClientId: "oidc_client_id",
@@ -162,6 +164,15 @@ export async function getOidcConfig(): Promise<OidcConfig> {
     adminGroup: (saved[SETTING_KEYS.oidcAdminGroup] ?? "").trim(),
     enabled: Boolean(issuer && clientId && clientSecret),
   };
+}
+
+export type PaneColumns = 1 | 2 | 3;
+
+/** Defaults to 2 — the pane is a glanceable strip, not the focus of the page. */
+export async function getStatusPaneColumns(): Promise<PaneColumns> {
+  const raw = await getSetting(SETTING_KEYS.statusPaneColumns);
+  const parsed = Number(raw);
+  return parsed === 1 || parsed === 2 || parsed === 3 ? (parsed as PaneColumns) : 2;
 }
 
 export async function getSessionMaxAge(): Promise<number> {
