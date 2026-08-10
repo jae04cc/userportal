@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { ICON_CATALOG, ICON_NAMES } from "./iconCatalog";
 import { inputClass } from "./ui";
 import { cn } from "@/lib/utils";
+import { isImageIcon } from "@/lib/icons";
 
 /**
  * Three ways to set a service icon, all writing to the same hidden `icon` field:
@@ -25,7 +26,9 @@ export function IconPicker({ name, initial, uid }: { name: string; initial: stri
     return names.slice(0, 60);
   }, [query]);
 
-  const isImage = /^(https?:\/\/|\/api\/icons\/)/i.test(value);
+  // Same predicate the portal card uses, so the preview can never disagree
+  // with what users actually see.
+  const isImage = isImageIcon(value);
   const Preview = !isImage && value ? ICON_CATALOG[value] : null;
 
   async function upload(file: File) {

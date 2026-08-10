@@ -1,5 +1,6 @@
 import * as Icons from "lucide-react";
 import { LayoutGrid, type LucideIcon } from "lucide-react";
+import { isImageIcon } from "@/lib/icons";
 
 /** "clapperboard" / "hard-drive" → "Clapperboard" / "HardDrive", matching lucide's exports. */
 function toPascalCase(name: string): string {
@@ -22,10 +23,10 @@ function toPascalCase(name: string): string {
 export function ServiceIcon({ icon, className }: { icon: string | null; className?: string }) {
   const size = className ?? "h-5 w-5";
 
-  if (icon && /^https?:\/\//i.test(icon)) {
+  if (isImageIcon(icon)) {
     return (
       <img
-        src={icon}
+        src={icon!.trim()}
         alt=""
         aria-hidden="true"
         loading="lazy"
