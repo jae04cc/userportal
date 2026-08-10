@@ -3,8 +3,9 @@ import { asc, eq } from "drizzle-orm";
 import { requireUser } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { groups, userGroups } from "@/lib/db/schema";
-import { Panel } from "@/components/admin/ui";
+import { Button, Panel } from "@/components/admin/ui";
 import { PasswordForm } from "@/components/AccountForms";
+import { signOut } from "@/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -82,6 +83,19 @@ export default async function AccountPage() {
           <PasswordForm />
         </Panel>
       ) : null}
+
+      <Panel title="Session">
+        <form
+          action={async () => {
+            "use server";
+            await signOut({ redirectTo: "/login" });
+          }}
+        >
+          <Button type="submit" variant="danger">
+            Sign out
+          </Button>
+        </form>
+      </Panel>
     </main>
   );
 }

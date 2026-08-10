@@ -36,7 +36,7 @@ export default async function HomePage() {
       description: service.description,
       // Rendered here on the server so lucide's icon barrel never reaches the
       // client bundle — the browser receives only the resulting <svg>.
-      icon: <ServiceIcon icon={service.icon} />,
+      icon: <ServiceIcon icon={service.icon} className="h-7 w-7" />,
       url: service.url,
       // monitorKey itself is intentionally not serialised to the browser.
       hasMonitor: Boolean(service.monitorKey),

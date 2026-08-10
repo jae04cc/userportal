@@ -80,28 +80,25 @@ function ServiceCard({
       href={service.url}
       target={isExternal ? "_blank" : undefined}
       rel={isExternal ? "noopener noreferrer" : undefined}
-      // The status is part of the accessible name so it isn't colour-only and
-      // isn't lost on a screen reader.
+      // The status stays in the accessible name, so it isn't lost for screen
+      // readers now that the visible word is gone.
       aria-label={health ? `${service.name}, status: ${health.status}` : service.name}
-      className="group flex flex-col gap-1.5 rounded-lg border border-surface-border bg-surface-raised p-3 transition-colors hover:border-slate-600 hover:bg-surface-hover sm:gap-2 sm:p-4"
+      className="group relative flex min-h-[4.5rem] flex-col justify-center gap-1 rounded-lg border border-surface-border bg-surface-raised p-3.5 transition-colors hover:border-slate-600 hover:bg-surface-hover sm:p-4"
     >
-      <div className="flex items-center gap-2 sm:gap-2.5">
+      {health ? <StatusDot health={health} className="absolute right-2.5 top-2.5" /> : null}
+
+      <div className="flex items-center gap-3">
         {service.icon}
-        <span className="truncate text-sm font-medium text-slate-100 sm:text-base">
-          {service.name}
-        </span>
+        <span className="truncate text-base font-medium text-slate-100">{service.name}</span>
       </div>
 
       {service.description ? (
         // Hidden on phones — at two columns there isn't room for it without the
         // cards becoming tall and unscannable.
-        <p className="hidden line-clamp-2 text-sm text-slate-400 sm:block">{service.description}</p>
+        <p className="hidden line-clamp-2 pl-[2.75rem] text-sm text-slate-400 sm:block">
+          {service.description}
+        </p>
       ) : null}
-
-      {/* Reserved height keeps the card from shifting when status arrives. */}
-      <div className="mt-auto flex h-4 items-center pt-1">
-        {health ? <StatusDot health={health} /> : null}
-      </div>
     </a>
   );
 }
