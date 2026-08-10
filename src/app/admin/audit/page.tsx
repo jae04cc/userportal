@@ -11,7 +11,11 @@ export default async function AdminAuditPage() {
       {entries.length === 0 ? (
         <p className="text-sm text-slate-500">Nothing recorded yet.</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div>
+          {/* Scrollbars are hidden globally, so this table's horizontal scroll
+              needs a cue of its own on narrow screens. */}
+          <p className="mb-2 text-xs text-slate-600 sm:hidden">Swipe sideways to see more.</p>
+          <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-surface-border text-xs uppercase tracking-wider text-slate-500">
@@ -39,7 +43,8 @@ export default async function AdminAuditPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
         </div>
       )}
     </Panel>

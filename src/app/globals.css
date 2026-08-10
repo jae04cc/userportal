@@ -16,6 +16,23 @@
   :focus-visible {
     @apply outline outline-2 outline-offset-2 outline-sky-400;
   }
+
+  /* Hide scrollbar chrome everywhere, without disabling scrolling.
+     Only the visual bar goes: wheel, touch, keyboard (arrows, Page Up/Down,
+     Home/End) and programmatic scrolling all still work, and the scroll
+     container keeps its full height rather than being clipped.
+
+     Note this removes an affordance — the bar is what tells a sighted user
+     that a region scrolls at all. The one place that matters is the audit
+     log's horizontal table, which carries an explicit hint instead. */
+  * {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* legacy Edge */
+  }
+
+  *::-webkit-scrollbar {
+    display: none; /* Chromium, Safari */
+  }
 }
 
 @layer utilities {
