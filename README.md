@@ -180,6 +180,22 @@ point an Uptime Kuma monitor at it so the portal watches itself.
   tree-shaking; keeping it server-side means the browser receives only the `<svg>`
   elements actually used.
 
+## Regenerating the lockfile
+
+Use **npm 10**, not npm 11:
+
+```bash
+npx npm@10 install
+```
+
+npm 11 omits `"optional": true` on nested platform-specific packages (vitest's
+`@esbuild/*`). A lockfile written that way makes `npm ci` fail on Linux with
+`EBADPLATFORM`, because it treats `@esbuild/aix-ppc64` as a required dependency —
+so CI and the Docker build break while everything still works locally on Windows.
+
+To check a lockfile is healthy, every package with an `os`/`cpu` constraint should
+carry `"optional": true` (excluding `libsql`, which genuinely supports the host).
+
 ## Testing
 
 ```bash

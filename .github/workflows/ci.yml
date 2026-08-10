@@ -16,17 +16,7 @@ jobs:
           node-version: 20
           cache: npm
 
-      # `npm install`, not `npm ci`, on purpose.
-      #
-      # npm 11.x writes vitest's nested @esbuild/* platform packages into
-      # package-lock.json without `"optional": true`. On Linux `npm ci` then
-      # treats @esbuild/aix-ppc64 as a required dependency and dies with
-      # EBADPLATFORM. `npm install` resolves platform packages correctly.
-      #
-      # The proper fix is to generate the lockfile on Linux; this dev machine is
-      # Windows-only. Revisit if that changes.
-      - run: npm install --no-audit --no-fund
-
+      - run: npm ci
       - run: npm test
       - run: npm run lint
       - run: npm run build
