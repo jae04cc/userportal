@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-surface-base text-slate-200 antialiased;
+  }
+
+  /* A clearly visible focus ring on every interactive element. Never removed —
+     keyboard users need to see where they are. */
+  :focus-visible {
+    @apply outline outline-2 outline-offset-2 outline-sky-400;
+  }
+}
+
+@layer utilities {
+  .card-grid {
+    display: grid;
+    gap: 0.5rem;
+    /* Two columns on phones. minmax(0,1fr) rather than 1fr so long service
+       names truncate instead of forcing the track wider than the viewport. */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (min-width: 640px) {
+    .card-grid {
+      gap: 0.75rem;
+      grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    }
+  }
+}
+
+/* Respect the OS-level reduced-motion setting: no transitions, no pulsing
+   status dots, no animation of any kind. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

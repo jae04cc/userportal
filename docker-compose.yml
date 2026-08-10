@@ -1,0 +1,31 @@
+services:
+  userportal:
+    build: .
+    container_name: userportal
+    restart: unless-stopped
+    ports:
+      # Host 3020 — scorecard uses 3000, fatbearweek 3010
+      - "3020:3000"
+    volumes:
+      # SQLite database persists here
+      - ./data:/data
+    environment:
+      - DATABASE_PATH=/data/userportal.db
+      - NODE_ENV=production
+
+      # --- Uptime Kuma (both required for status indicators) ---
+      # - KUMA_BASE_URL=https://uptime.example.com
+      # - KUMA_STATUS_SLUG=services
+
+      # --- Authentik / OIDC (all three required for the SSO button) ---
+      # - OIDC_ISSUER=https://authentik.example.com/application/o/portal/
+      # - OIDC_CLIENT_ID=
+      # - OIDC_CLIENT_SECRET=
+
+      # Set false once SSO is confirmed working to close the break-glass login
+      # - LOCAL_LOGIN_ENABLED=true
+
+      # - TZ=America/New_York
+
+  # Point Pangolin at this container — no reverse-proxy labels are needed here,
+  # Pangolin is configured separately.

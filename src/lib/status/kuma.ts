@@ -1,0 +1,216 @@
+import type {
+  DiscoveredMonitor,
+  MonitorHealth,
+  ServiceStatus,
+  StatusMap,
+  StatusProvider,
+} from "./types";
+
+// ---------------------------------------------------------------------------
+// Uptime Kuma has no committed public REST API. The status-page endpoints below
+// are what its own frontend uses and are stable in practice, but a Kuma major
+// upgrade could change them — hence the StatusProvider seam and the hard rule
+// that any failure degrades to "unknown" rather than breaking the portal.
+//
+//   GET /api/status-page/{slug}            → group + monitor list
+//   GET /api/status-page/heartbeat/{slug}  → heartbeats + 24h uptime per monitor
+//
+// Requires one PUBLISHED status page in Kuma containing the monitors to surface.
+// ---------------------------------------------------------------------------
+
+const KUMA_TIMEOUT_MS = 3000;
+
+/** Kuma heartbeat status codes. */
+const KUMA_DOWN = 0;
+const KUMA_UP = 1;
+const KUMA_PENDING = 2;
+const KUMA_MAINTENANCE = 3;
+
+type KumaMonitor = { id: number; name: string };
+type KumaHeartbeat = { status: number; time: string };
+
+export type KumaStatusPageResponse = {
+  publicGroupList?: Array<{ name?: string; monitorList?: KumaMonitor[] }>;
+};
+
+export type KumaHeartbeatResponse = {
+  heartbeatList?: Record<string, KumaHeartbeat[]>;
+  uptimeList?: Record<string, number>;
+};
+
+/**
+ * Maps Kuma's heartbeat code onto the portal's four states.
+ *
+ * Kuma has no native "degraded" — PENDING (failing but still inside its retry
+ * budget) and MAINTENANCE are the two conditions that are meaningfully "not
+ * healthy, not down", so both surface as degraded.
+ */
+export function mapKumaStatus(code: number): ServiceStatus {
+  switch (code) {
+    case KUMA_UP:
+      return "up";
+    case KUMA_DOWN:
+      return "down";
+    case KUMA_PENDING:
+    case KUMA_MAINTENANCE:
+      return "degraded";
+    default:
+      return "unknown";
+  }
+}
+
+/** A heartbeat this old means Kuma itself has stopped checking — not a real "up". */
+const STALE_AFTER_MS = 10 * 60_000;
+
+/**
+ * Kuma emits naive timestamps ("2026-08-08 12:00:00") in the status page's
+ * configured timezone as well as ISO strings depending on version. Parse both,
+ * treating a naive string as UTC so a timezone offset can't make a fresh
+ * heartbeat look stale.
+ */
+export function parseKumaTime(value: string): number | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const normalised = /[TZ]|[+-]\d{2}:?\d{2}$/.test(value)
+    ? value
+    : `${value.trim().replace(" ", "T")}Z`;
+  const parsed = Date.parse(normalised);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** Extracts monitors and their group names, tolerating malformed entries. */
+function readMonitors(
+  page: KumaStatusPageResponse
+): Array<{ id: number; name: string; groupName: string }> {
+  const out: Array<{ id: number; name: string; groupName: string }> = [];
+  for (const group of page.publicGroupList ?? []) {
+    const groupName = typeof group?.name === "string" && group.name.trim() ? group.name : "Services";
+    for (const monitor of group?.monitorList ?? []) {
+      if (monitor && typeof monitor.id === "number" && typeof monitor.name === "string") {
+        out.push({ id: monitor.id, name: monitor.name, groupName });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Pure parser, split out from the fetching so it can be unit tested against
+ * captured fixtures. Every monitor is registered under BOTH its id and its
+ * name, so either form of binding resolves.
+ */
+export function parseKumaResponses(
+  page: KumaStatusPageResponse,
+  heartbeats: KumaHeartbeatResponse,
+  now: number = Date.now()
+): StatusMap {
+  const result: StatusMap = new Map();
+
+  for (const monitor of readMonitors(page)) {
+    const key = String(monitor.id);
+    const list = heartbeats.heartbeatList?.[key];
+    const rawUptime = heartbeats.uptimeList?.[`${key}_24`] ?? heartbeats.uptimeList?.[key];
+    const uptime24h = typeof rawUptime === "number" && Number.isFinite(rawUptime) ? rawUptime : null;
+
+    let health: MonitorHealth;
+
+    if (!Array.isArray(list) || list.length === 0) {
+      health = { status: "unknown", uptime24h, lastCheckAt: null };
+    } else {
+      const latest = list[list.length - 1];
+      const lastCheckAt = latest ? parseKumaTime(latest.time) : null;
+
+      if (!latest || typeof latest.status !== "number") {
+        health = { status: "unknown", uptime24h, lastCheckAt };
+      } else if (lastCheckAt !== null && now - lastCheckAt > STALE_AFTER_MS) {
+        // Kuma has stopped checking this monitor — don't report a stale "up".
+        health = { status: "unknown", uptime24h, lastCheckAt };
+      } else {
+        health = { status: mapKumaStatus(latest.status), uptime24h, lastCheckAt };
+      }
+    }
+
+    result.set(key, health);
+    result.set(monitor.name, health);
+  }
+
+  return result;
+}
+
+export function parseKumaMonitors(page: KumaStatusPageResponse): DiscoveredMonitor[] {
+  return readMonitors(page).map((m) => ({
+    id: String(m.id),
+    name: m.name,
+    groupName: m.groupName,
+  }));
+}
+
+export class KumaStatusProvider implements StatusProvider {
+  readonly name = "uptime-kuma";
+
+  constructor(
+    private readonly baseUrl: string,
+    private readonly slug: string
+  ) {}
+
+  private url(pathname: string): string {
+    return `${this.baseUrl.replace(/\/+$/, "")}${pathname}`;
+  }
+
+  private async get<T>(pathname: string): Promise<T | null> {
+    try {
+      const res = await fetch(this.url(pathname), {
+        signal: AbortSignal.timeout(KUMA_TIMEOUT_MS),
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        console.warn(`[status] Kuma responded ${res.status} for ${pathname}`);
+        return null;
+      }
+      return (await res.json()) as T;
+    } catch (err) {
+      // Unreachable, DNS failure, timeout, malformed JSON — all the same to the
+      // caller. Cards fall back to "unknown"; the portal never errors on this.
+      console.warn(`[status] Kuma unreachable: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  async fetchStatuses(): Promise<StatusMap> {
+    const slug = encodeURIComponent(this.slug);
+    const [page, beats] = await Promise.all([
+      this.get<KumaStatusPageResponse>(`/api/status-page/${slug}`),
+      this.get<KumaHeartbeatResponse>(`/api/status-page/heartbeat/${slug}`),
+    ]);
+    if (!page || !beats) return new Map();
+    return parseKumaResponses(page, beats);
+  }
+
+  async discoverMonitors(): Promise<DiscoveredMonitor[]> {
+    const page = await this.get<KumaStatusPageResponse>(
+      `/api/status-page/${encodeURIComponent(this.slug)}`
+    );
+    return page ? parseKumaMonitors(page) : [];
+  }
+
+  /** Used by the admin "Test connection" button. */
+  async test(): Promise<{ ok: boolean; message: string }> {
+    const page = await this.get<KumaStatusPageResponse>(
+      `/api/status-page/${encodeURIComponent(this.slug)}`
+    );
+    if (!page) {
+      return {
+        ok: false,
+        message:
+          "Could not reach that status page. Check the URL and slug, and that the status page is published.",
+      };
+    }
+    const monitors = parseKumaMonitors(page);
+    if (monitors.length === 0) {
+      return {
+        ok: false,
+        message: "Reached Kuma, but that status page has no monitors on it.",
+      };
+    }
+    return { ok: true, message: `Connected. Found ${monitors.length} monitor(s).` };
+  }
+}
