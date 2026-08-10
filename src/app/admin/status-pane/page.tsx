@@ -53,7 +53,7 @@ export default async function AdminStatusPanePage() {
           <Field
             label="Columns"
             htmlFor="pane-columns"
-            hint="More columns means a shorter pane. Always one column on phones."
+            hint="Applies on phones too. Narrow columns drop the status word, uptime and ping to fit — the glyph and bars always stay."
           >
             <select
               id="pane-columns"
@@ -63,7 +63,7 @@ export default async function AdminStatusPanePage() {
             >
               <option value="1">One — full width</option>
               <option value="2">Two</option>
-              <option value="3">Three</option>
+              <option value="3">Three — most compact</option>
             </select>
           </Field>
 

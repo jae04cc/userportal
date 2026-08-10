@@ -18,9 +18,11 @@ const STATUS_WORD: Record<ServiceStatus, string> = {
 };
 
 // How many of the most recent beats are visible at each width. Narrow columns
-// get fewer bars rather than thinner ones — a 1px sliver reads as noise.
-const SHOW_BASE = 12;
-const SHOW_SM = 24;
+// get fewer bars rather than thinner ones — a 1px sliver reads as noise, and at
+// three columns on a phone the strip is only ~32px wide, which fits 8 bars plus
+// their gaps and no more.
+const SHOW_BASE = 8;
+const SHOW_SM = 20;
 
 function beatTitle(beat: Beat): string {
   const when = beat.at ? new Date(beat.at).toLocaleTimeString() : "unknown time";
