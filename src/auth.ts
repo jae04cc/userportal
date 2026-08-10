@@ -28,16 +28,30 @@ declare module "next-auth" {
   }
 }
 
+/**
+ * Memoised for the life of the process. The auth config is rebuilt on every
+ * request (that's what makes DB-driven OIDC settings take effect immediately),
+ * so without this the secret would cost a database round trip on every single
+ * request. It never changes while the process runs.
+ */
+let cachedSecret: string | null = null;
+
 async function getOrCreateSecret(): Promise<string> {
+  if (cachedSecret) return cachedSecret;
+
   const existing = await db.query.appSettings.findFirst({
     where: eq(appSettings.key, "auth_secret"),
   });
-  if (existing) return existing.value;
+  if (existing) {
+    cachedSecret = existing.value;
+    return cachedSecret;
+  }
 
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   const secret = Buffer.from(bytes).toString("base64url");
   await db.insert(appSettings).values({ key: "auth_secret", value: secret }).onConflictDoNothing();
+  cachedSecret = secret;
   return secret;
 }
 

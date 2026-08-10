@@ -30,8 +30,16 @@ The two things the word "group" could mean are kept strictly separate:
 
 ```bash
 npm install
-npm run dev      # http://0.0.0.0:5175
+npm run serve    # build + start, http://0.0.0.0:5175
 ```
+
+**Use `npm run serve`, not `npm run dev`, when you're actually using the portal.**
+`next dev` compiles each route the first time it's visited — 10–18 seconds for the
+landing page and the admin screens, and the cache is thrown away on every restart.
+The same routes serve in ~90ms once warm, and in production they're ~90ms from the
+first request. `npm run dev` is only worth it while editing code, for hot reload.
+
+Both bind `0.0.0.0` so a reverse proxy on the same network can reach them.
 
 On first start the app creates its SQLite database, runs migrations, and prints a
 bootstrap admin account to stdout:
@@ -44,7 +52,6 @@ bootstrap admin account to stdout:
 Sign in with it, then change the password from **Account** — the portal nags until you
 do, because that password is sitting in the server log.
 
-`npm run dev` binds to `0.0.0.0` so a reverse proxy on the same network can reach it.
 
 ## Identity model
 

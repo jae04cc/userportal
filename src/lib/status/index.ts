@@ -50,13 +50,45 @@ export async function getStatuses(): Promise<StatusMap> {
   return promise;
 }
 
-/** Drops the cache immediately — called after the Kuma settings are changed. */
+/** Drops the caches immediately — called after the Kuma settings are changed. */
 export function invalidateStatusCache() {
   cached = null;
   inFlight = null;
+  cachedMonitors = null;
+  monitorsInFlight = null;
 }
 
+/**
+ * Discovery is cached like statuses are. Without this, every load of the
+ * Monitoring and Status pane admin screens made a fresh round trip to Kuma —
+ * and if Kuma were slow or unreachable, those pages would stall for the full
+ * 3s timeout before rendering the very form you'd use to fix the URL.
+ */
+let cachedMonitors: { key: string; at: number; data: DiscoveredMonitor[] } | null = null;
+let monitorsInFlight: { key: string; promise: Promise<DiscoveredMonitor[]> } | null = null;
+
 export async function discoverMonitors(): Promise<DiscoveredMonitor[]> {
-  const provider = await getKumaProvider();
-  return provider ? provider.discoverMonitors() : [];
+  const config = await getKumaConfig();
+  if (!config.configured) return [];
+
+  const key = `${config.baseUrl}|${config.slug}`;
+  const now = Date.now();
+
+  if (cachedMonitors && cachedMonitors.key === key && now - cachedMonitors.at < CACHE_TTL_MS) {
+    return cachedMonitors.data;
+  }
+  if (monitorsInFlight && monitorsInFlight.key === key) return monitorsInFlight.promise;
+
+  const promise = new KumaStatusProvider(config.baseUrl, config.slug)
+    .discoverMonitors()
+    .then((data) => {
+      cachedMonitors = { key, at: Date.now(), data };
+      return data;
+    })
+    .finally(() => {
+      if (monitorsInFlight?.key === key) monitorsInFlight = null;
+    });
+
+  monitorsInFlight = { key, promise };
+  return promise;
 }

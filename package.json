@@ -6,6 +6,7 @@
     "dev": "next dev -H 0.0.0.0 -p 5175",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 5175",
+    "serve": "next build && next start -H 0.0.0.0 -p 5175",
     "lint": "next lint",
     "reset-admin": "node scripts/reset-admin.mjs",
     "test": "vitest run",
