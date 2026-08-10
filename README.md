@@ -158,8 +158,12 @@ the account on Admin → Users cuts access on their very next request.
 
 ## Deployment
 
+Images are published to **`ghcr.io/jae04cc/userportal`** by GitHub Actions on every
+push to `main` — no registry credentials are configured anywhere, because ghcr
+authenticates with the `GITHUB_TOKEN` each workflow run already has.
+
 ```bash
-docker compose up -d --build
+docker compose pull && docker compose up -d
 ```
 
 Host port `3020` → container `3000`. Mount a volume at `/data` for the database and

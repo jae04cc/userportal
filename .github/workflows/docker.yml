@@ -1,52 +1,48 @@
 name: Docker
 
-# Publishes jae04cc/userportal:latest and :<sha> to Docker Hub.
+# Publishes to GitHub Container Registry: ghcr.io/jae04cc/userportal
 #
-# Requires two repository secrets — Settings → Secrets and variables → Actions:
-#   DOCKERHUB_USERNAME  your Docker Hub username
-#   DOCKERHUB_TOKEN     a Docker Hub access token with Read & Write
-#
-# The preflight step below fails with a clear message if either is missing,
-# rather than letting the login action emit an opaque error.
-#
-# Still manual-only until those secrets exist — enabling the push trigger first
-# would just fail on every commit. Once they're set, uncomment the push block to
-# publish automatically on every merge to main.
+# No secrets to configure — authentication uses the GITHUB_TOKEN that every
+# workflow run is issued automatically. That's the whole reason this targets
+# ghcr rather than Docker Hub: personal GitHub accounts have no shared secret
+# store, so a Docker Hub token would have to be re-added to every repository.
 on:
-  # push:
-  #   branches: [main]
+  push:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   push:
     runs-on: ubuntu-latest
-    steps:
-      - name: Check registry credentials are configured
-        env:
-          USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        run: |
-          if [ -z "$USERNAME" ] || [ -z "$TOKEN" ]; then
-            echo "::error::DOCKERHUB_USERNAME and DOCKERHUB_TOKEN repository secrets are not set."
-            echo "Add them under Settings -> Secrets and variables -> Actions, then re-run."
-            exit 1
-          fi
 
+    # GITHUB_TOKEN is read-only by default; publishing a package needs this.
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
       - uses: actions/checkout@v4
 
       - uses: docker/setup-buildx-action@v3
 
       - uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ghcr requires a lowercase image path, and github.repository preserves
+      # the owner's original casing.
+      - name: Resolve image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
       - uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/userportal:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/userportal:${{ github.sha }}
+            ${{ steps.image.outputs.name }}:latest
+            ${{ steps.image.outputs.name }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

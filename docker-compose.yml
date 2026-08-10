@@ -1,6 +1,8 @@
 services:
   userportal:
-    build: .
+    # Published by .github/workflows/docker.yml on every push to main.
+    # Swap for `build: .` to build locally instead.
+    image: ghcr.io/jae04cc/userportal:latest
     container_name: userportal
     restart: unless-stopped
     ports:
