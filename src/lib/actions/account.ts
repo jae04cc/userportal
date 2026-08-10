@@ -67,21 +67,6 @@ export async function changeOwnPassword(
   return { ok: true, message: "Password changed." };
 }
 
-/** Lets a user set their own display name — the greeting on the landing page. */
-export async function updateOwnProfile(
-  _prev: AccountResult | null,
-  form: FormData
-): Promise<AccountResult> {
-  const user = await getCurrentUser();
-  if (!user) return { ok: false, message: "You are not signed in." };
-
-  const displayName = String(form.get("displayName") ?? "").trim();
-  if (!displayName) return { ok: false, message: "Display name can't be empty." };
-  if (displayName.length > 60) return { ok: false, message: "That name is too long." };
-
-  await db.update(users).set({ displayName }).where(eq(users.id, user.id));
-
-  revalidatePath("/account");
-  revalidatePath("/");
-  return { ok: true, message: "Saved." };
-}
+// Display name is not editable here: for SSO users it's mirrored from the
+// identity provider on every sign-in, so a local edit would be silently
+// overwritten. Change it in the IdP instead.

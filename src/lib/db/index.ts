@@ -36,6 +36,10 @@ export function ensureDbReady(): Promise<void> {
       await runMigrations();
       await bootstrapAdmin();
       await seedDefaults();
+      // Dynamic import: settings.ts imports this module, so a static import
+      // here would be a cycle.
+      const { seedFromEnvOnce } = await import("@/lib/settings");
+      await seedFromEnvOnce();
     })().catch((err) => {
       // Don't cache a failed init — let the next request retry rather than
       // leaving the process permanently broken.

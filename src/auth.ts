@@ -1,21 +1,26 @@
 import NextAuth, { type DefaultSession, type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import { asc, eq } from "drizzle-orm";
 import { db, ensureDbReady } from "@/lib/db";
 import { appSettings, groups, userGroups, users } from "@/lib/db/schema";
-import { getSetting, SETTING_KEYS } from "@/lib/settings";
-import { eq } from "drizzle-orm";
 import { verifyPassword } from "@/lib/password";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
 import { generateId } from "@/lib/utils";
+import { getOidcConfig, getSessionMaxAge, getSetting, SETTING_KEYS } from "@/lib/settings";
+import {
+  extractGroups,
+  isAdminFromGroups,
+  normaliseGroupName,
+  resolveDisplayName,
+  resolveGroupNames,
+  resolveUsername,
+} from "@/lib/idpSync";
 
 // ---------------------------------------------------------------------------
-// The session deliberately carries ONLY the user id.
-//
-// Roles and group membership are resolved from SQLite on every request via
-// getCurrentUser() in src/lib/authz.ts. If they lived in the JWT, an admin
-// changing someone's groups would have no effect until that user next signed
-// in — which contradicts the "changes take effect without a redeploy"
-// requirement. A local SQLite lookup is sub-millisecond, so this is cheap.
+// The session deliberately carries ONLY the user id. Roles and group membership
+// are resolved from SQLite on every request via getCurrentUser() in
+// src/lib/authz.ts, so suspending an account or changing its access takes effect
+// on that user's very next request.
 // ---------------------------------------------------------------------------
 declare module "next-auth" {
   interface Session {
@@ -24,13 +29,6 @@ declare module "next-auth" {
 }
 
 async function getOrCreateSecret(): Promise<string> {
-  // Earliest DB touch in any request path — migrations and the bootstrap admin
-  // are created here on first run.
-  await ensureDbReady();
-
-  const fromEnv = process.env.AUTH_SECRET;
-  if (fromEnv) return fromEnv;
-
   const existing = await db.query.appSettings.findFirst({
     where: eq(appSettings.key, "auth_secret"),
   });
@@ -44,142 +42,179 @@ async function getOrCreateSecret(): Promise<string> {
 }
 
 /**
- * The Authentik/OIDC provider is only registered when all three env vars are
- * present, so the portal runs perfectly well on local credentials alone until
- * you supply them. No code change is needed to switch it on.
+ * Mirrors the IdP's groups onto the portal user.
+ *
+ * Authentik is the sole source of truth: whatever the claim says REPLACES the
+ * user's stored membership. Group rows are matched case-insensitively by name
+ * and created on first sight, so a new Authentik group becomes usable for
+ * service scoping as soon as one member signs in.
+ *
+ * Admin rights are derived the same way, from the configured admin group. The
+ * local bootstrap account is exempt — it keeps its own is_admin flag, which is
+ * what stops a broken IdP config locking everyone out.
  */
-function oidcProvider(): NextAuthConfig["providers"][number] | null {
-  const issuer = process.env.OIDC_ISSUER;
-  const clientId = process.env.OIDC_CLIENT_ID;
-  const clientSecret = process.env.OIDC_CLIENT_SECRET;
-  if (!issuer || !clientId || !clientSecret) return null;
+async function syncFromClaims(userId: string, claims: Record<string, unknown>) {
+  const config = await getOidcConfig();
 
-  return {
-    id: "oidc",
-    name: process.env.OIDC_DISPLAY_NAME ?? "Single sign-on",
-    type: "oidc",
-    issuer,
-    clientId,
-    clientSecret,
-    authorization: { params: { scope: "openid profile email" } },
-    // Trust the IdP's own account identity, not the email address.
-    allowDangerousEmailAccountLinking: false,
-  };
+  const claimGroups = extractGroups(claims, config.groupsClaim);
+  const isAdmin = isAdminFromGroups(claimGroups, config.adminGroup);
+
+  // The default group applies only when the IdP sent no groups at all.
+  let defaultGroupName: string | null = null;
+  const defaultGroupId = await getSetting(SETTING_KEYS.defaultGroupId);
+  if (defaultGroupId) {
+    const row = await db.query.groups.findFirst({ where: eq(groups.id, defaultGroupId) });
+    defaultGroupName = row?.name ?? null;
+  }
+
+  const wanted = resolveGroupNames(claimGroups, defaultGroupName);
+
+  const existing = await db.select().from(groups).orderBy(asc(groups.name));
+  const byName = new Map(existing.map((g) => [normaliseGroupName(g.name), g]));
+
+  const groupIds: string[] = [];
+  for (const name of wanted) {
+    const key = normaliseGroupName(name);
+    let group = byName.get(key);
+    if (!group) {
+      group = {
+        id: generateId(),
+        name,
+        description: "Created automatically from an identity provider group.",
+        sortOrder: existing.length + groupIds.length,
+        createdAt: new Date(),
+      };
+      await db.insert(groups).values(group);
+      byName.set(key, group);
+    }
+    groupIds.push(group.id);
+  }
+
+  // Replace membership wholesale — the IdP is authoritative.
+  await db.delete(userGroups).where(eq(userGroups.userId, userId));
+  if (groupIds.length > 0) {
+    await db.insert(userGroups).values(groupIds.map((groupId) => ({ userId, groupId })));
+  }
+
+  await db.update(users).set({ isAdmin, lastLoginAt: new Date() }).where(eq(users.id, userId));
 }
 
-export const isOidcEnabled = Boolean(
-  process.env.OIDC_ISSUER && process.env.OIDC_CLIENT_ID && process.env.OIDC_CLIENT_SECRET
-);
-
-/** Set LOCAL_LOGIN_ENABLED=false once SSO is confirmed working to close the fallback. */
-export const isLocalLoginEnabled = process.env.LOCAL_LOGIN_ENABLED !== "false";
-
 export const { handlers, auth, signIn, signOut } = NextAuth(async () => {
-  const secret = await getOrCreateSecret();
+  // Runs per request (next-auth's lazy initialisation), so OIDC settings saved
+  // in the admin area take effect immediately with no restart.
+  await ensureDbReady();
+
+  const [secret, oidc, maxAge] = await Promise.all([
+    getOrCreateSecret(),
+    getOidcConfig(),
+    getSessionMaxAge(),
+  ]);
 
   const providers: NextAuthConfig["providers"] = [];
 
-  const oidc = oidcProvider();
-  if (oidc) providers.push(oidc);
-
-  if (isLocalLoginEnabled) {
-    providers.push(
-      Credentials({
-        id: "credentials",
-        name: "Username and password",
-        credentials: {
-          username: { label: "Username", type: "text" },
-          password: { label: "Password", type: "password" },
-        },
-        async authorize(credentials, request) {
-          const username = credentials?.username as string | undefined;
-          const password = credentials?.password as string | undefined;
-          if (!username || !password) return null;
-
-          // Throttle password guessing: 10 tries per 5 minutes per IP. Returning
-          // null surfaces as an ordinary "invalid credentials", so an attacker
-          // can't distinguish a lockout from a wrong password.
-          const headers = request?.headers ?? new Headers();
-          if (!rateLimit(`login:${clientIp(headers)}`, 10, 5 * 60_000).ok) return null;
-
-          const user = await db.query.users.findFirst({
-            // Usernames are stored lowercase — logins are case-insensitive
-            where: eq(users.username, username.trim().toLowerCase()),
-          });
-          if (!user || !user.passwordHash) return null;
-          // Suspended accounts can't sign in at all, and the failure is
-          // indistinguishable from a wrong password.
-          if (!user.isActive) return null;
-
-          const valid = await verifyPassword(password, user.passwordHash);
-          if (!valid) return null;
-
-          await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
-
-          return { id: user.id, name: user.displayName ?? user.username };
-        },
-      })
-    );
+  if (oidc.enabled) {
+    providers.push({
+      id: "oidc",
+      name: oidc.displayName,
+      type: "oidc",
+      issuer: oidc.issuer,
+      clientId: oidc.clientId,
+      clientSecret: oidc.clientSecret,
+      authorization: { params: { scope: "openid profile email groups" } },
+      // Identity is bound by the IdP's subject, never by a matching email.
+      allowDangerousEmailAccountLinking: false,
+    });
   }
+
+  // The local credentials provider is ALWAYS registered. It is the break-glass
+  // path for the bootstrap admin — if it could be switched off, a bad OIDC
+  // config would lock everyone out permanently. The login page hides it behind
+  // a disclosure instead.
+  providers.push(
+    Credentials({
+      id: "credentials",
+      name: "Local account",
+      credentials: {
+        username: { label: "Username", type: "text" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials, request) {
+        const username = credentials?.username as string | undefined;
+        const password = credentials?.password as string | undefined;
+        if (!username || !password) return null;
+
+        const headers = request?.headers ?? new Headers();
+        if (!rateLimit(`login:${clientIp(headers)}`, 10, 5 * 60_000).ok) return null;
+
+        const user = await db.query.users.findFirst({
+          where: eq(users.username, username.trim().toLowerCase()),
+        });
+        // Only accounts with a local password hash can use this path, which in
+        // practice means the bootstrap admin alone.
+        if (!user?.passwordHash || !user.isActive) return null;
+        if (!(await verifyPassword(password, user.passwordHash))) return null;
+
+        await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+        return { id: user.id, name: user.displayName ?? user.username };
+      },
+    })
+  );
 
   return {
     secret,
     trustHost: true,
+    // Short by design: it's how fast deprovisioning in Authentik propagates,
+    // since a JWT session can't be revoked server-side.
+    session: { strategy: "jwt", maxAge },
     providers,
     callbacks: {
       /**
-       * For OIDC sign-ins, find-or-create the local user row keyed on the
-       * issuer's `sub`. An existing local account is NEVER auto-linked by
-       * matching email — that's an account-takeover vector if the IdP ever
-       * hands over an address it hasn't verified. Linking is done deliberately
-       * by an admin setting oidc_sub from the admin area.
+       * Find-or-create the local mirror of an IdP identity, keyed on `sub`, then
+       * sync groups and admin rights from the token's claims.
        */
       async signIn({ account, profile }) {
         if (account?.provider !== "oidc" || !profile?.sub) return true;
 
+        const claims = profile as unknown as Record<string, unknown>;
         const existing = await db.query.users.findFirst({
           where: eq(users.oidcSub, profile.sub),
         });
 
         if (existing) {
           if (!existing.isActive) return false;
-          await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, existing.id));
+          await db
+            .update(users)
+            .set({
+              displayName: resolveDisplayName(claims, existing.displayName ?? existing.username),
+              email: (profile.email as string | undefined) ?? existing.email,
+            })
+            .where(eq(users.id, existing.id));
+          await syncFromClaims(existing.id, claims);
           return true;
         }
 
-        // First SSO sign-in: provision with no admin rights.
-        const base = (profile.preferred_username as string | undefined) ?? profile.email ?? profile.sub;
-        const username = await uniqueUsername(String(base).trim().toLowerCase());
+        const username = await uniqueUsername(resolveUsername(claims, profile.sub));
         const newId = generateId();
 
         await db.insert(users).values({
           id: newId,
           username,
+          // IdP users never have a local password.
           passwordHash: null,
           oidcSub: profile.sub,
-          displayName: (profile.name as string | undefined) ?? username,
-          email: profile.email ?? null,
+          displayName: resolveDisplayName(claims, username),
+          email: (profile.email as string | undefined) ?? null,
           isAdmin: false,
           isBootstrap: false,
           createdAt: new Date(),
           lastLoginAt: new Date(),
         });
 
-        // Without this a brand-new SSO user lands on a near-empty portal, since
-        // they'd only see services with "everyone" visibility.
-        const defaultGroupId = await getSetting(SETTING_KEYS.defaultGroupId);
-        if (defaultGroupId) {
-          const group = await db.query.groups.findFirst({ where: eq(groups.id, defaultGroupId) });
-          if (group) {
-            await db.insert(userGroups).values({ userId: newId, groupId: group.id });
-          }
-        }
-
+        await syncFromClaims(newId, claims);
         return true;
       },
 
       async jwt({ token, user, account, profile }) {
-        // `user` is only present on initial sign-in
         if (account?.provider === "oidc" && profile?.sub) {
           const row = await db.query.users.findFirst({ where: eq(users.oidcSub, profile.sub) });
           if (row) token.userId = row.id;
@@ -200,12 +235,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth(async () => {
   };
 });
 
-/** Appends -2, -3, … if an SSO-derived username collides with an existing one. */
+/** Appends -2, -3, … if an IdP-derived username collides with an existing one. */
 async function uniqueUsername(base: string): Promise<string> {
   const clean = base.replace(/\s+/g, "-") || "user";
   let candidate = clean;
   let n = 1;
-  // Bounded loop — in practice this resolves on the first or second try.
   while (n < 100) {
     const clash = await db.query.users.findFirst({ where: eq(users.username, candidate) });
     if (!clash) return candidate;

@@ -46,27 +46,66 @@ do, because that password is sitting in the server log.
 
 `npm run dev` binds to `0.0.0.0` so a reverse proxy on the same network can reach it.
 
+## Identity model
+
+**Everyone except one account signs in through your identity provider.**
+
+- **IdP users** are created automatically on first sign-in. They have no password,
+  and nothing about them is editable in the portal — display name, email, groups, and
+  admin rights are all mirrored from their token every time they sign in.
+- **The bootstrap admin** is the single local username/password account. It exists so a
+  broken IdP configuration can never lock you out. It keeps its admin rights regardless
+  of what the IdP says, and it's the only account with a password to change.
+
+Your IdP is the sole source of truth for authorization:
+
+| Decision | Comes from |
+|---|---|
+| Who can sign in | The IdP |
+| Which groups a user is in | The groups claim, replacing whatever the portal stored |
+| Who is an admin | Membership of the configured admin group |
+| Who is suspended | The portal (this is the one local override) |
+
+A group named in someone's token is created in the portal the first time it's seen. To
+scope a service to a group *before* anyone in it has signed in, create it by name on the
+Groups tab — the name must match your IdP, matched case-insensitively.
+
+The configured **default group** applies only when the IdP sends no groups at all. It is
+never added alongside claimed groups, because it would then be silently re-applied on
+every sign-in and contradict the IdP.
+
 ## Configuration
 
-Almost everything is configured **in the admin UI** and stored in the database, so it
-survives redeploys and takes effect immediately. Environment variables only seed
-initial values or control things that must exist before the database is readable.
+**There are no configuration environment variables.** Single sign-on, Uptime Kuma,
+session lifetime, and the MOTD are all configured in the admin area and stored in the
+database, so changes take effect immediately and survive redeploys.
 
-| Variable | Required | Purpose |
+Two variables are the only exceptions, because they can't live in the database — you
+can't read the location of the database out of the database:
+
+| Variable | Default | Purpose |
 |---|---|---|
-| `DATABASE_PATH` | no | SQLite file. Defaults to `./data/userportal.db`. |
-| `UPLOADS_DIR` | no | Uploaded service icons. Defaults to `./data/uploads`. |
-| `AUTH_SECRET` | recommended | Session signing key. Auto-generated into the DB if unset; set it explicitly so sessions survive a database reset. |
-| `AUTH_URL` | behind a proxy | The portal's public URL, e.g. `https://portal.example.com`. |
-| `OIDC_ISSUER` | for SSO | e.g. `https://authentik.example.com/application/o/portal/` |
-| `OIDC_CLIENT_ID` | for SSO | |
-| `OIDC_CLIENT_SECRET` | for SSO | |
-| `OIDC_DISPLAY_NAME` | no | Label on the SSO button. Defaults to "Single sign-on". |
-| `LOCAL_LOGIN_ENABLED` | no | Set `false` to close the local login once SSO works. |
-| `KUMA_BASE_URL` | no | Seeds the Kuma URL on first run; the admin UI takes over after. |
-| `KUMA_STATUS_SLUG` | no | Same, for the status page slug. |
+| `DATABASE_PATH` | `./data/userportal.db` | SQLite file |
+| `UPLOADS_DIR` | `./data/uploads` | Uploaded service icons |
 
-All three `OIDC_*` variables must be set for the SSO button to appear.
+The session signing secret is generated once and stored in the database automatically.
+The OIDC callback URL is derived from the incoming request, so it's correct behind a
+reverse proxy without configuring a public URL anywhere.
+
+On a brand-new database only, `KUMA_*` and `OIDC_*` environment variables are read once
+to pre-fill the matching settings, so an existing env-configured deployment carries
+over. After that the database is authoritative and the environment is ignored.
+
+### Locked out?
+
+If single sign-on breaks and you don't have the bootstrap password:
+
+```bash
+docker compose exec userportal node scripts/reset-admin.mjs   # or: npm run reset-admin
+```
+
+It prints a new password. Sign in at **`/login?local=1`** — the local form is hidden
+behind a small link once SSO is configured, but it is never disabled.
 
 ### Uptime Kuma
 
@@ -92,18 +131,23 @@ stale `up`.
 
 ### Authentik / OIDC
 
-Register the portal as an OAuth2/OIDC provider in Authentik with redirect URI:
+Configure this on **Admin → Authentication**, which shows the exact redirect URI to
+register in Authentik and validates the issuer's discovery document when you save.
 
-```
-https://portal.example.com/api/auth/callback/oidc
-```
+You'll need: issuer URL, client ID, client secret, the name of the claim carrying
+groups (usually `groups`), and the name of the Authentik group that grants portal admin.
 
-First-time SSO users are auto-provisioned with no admin rights. Set a **default group**
-on Admin → Groups so they don't land on an empty portal.
+Make sure Authentik actually emits the groups claim — without it, no user gets any
+groups and nobody becomes an admin. The portal reads a claim that is an array of
+strings, a single string, or a delimited string.
 
-Existing local accounts are **never** auto-linked to an SSO identity by matching email —
-that's an account-takeover vector if the IdP hands over an unverified address. An admin
-links them deliberately by pasting the Authentik `sub` on Admin → Users.
+Identity is bound to the IdP's `sub`, never to a matching email address — auto-linking
+on email is an account-takeover vector if the IdP ever hands over an unverified one.
+
+**Session lifetime is how fast deprovisioning propagates.** Deleting someone in
+Authentik stops them signing in again, but a JWT session can't be revoked server-side,
+so an existing session stays valid until it expires. The default is 8 hours. Suspending
+the account on Admin → Users cuts access on their very next request.
 
 ## Deployment
 

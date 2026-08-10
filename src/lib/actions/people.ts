@@ -1,14 +1,19 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, sql, asc } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { groups, userGroups, users } from "@/lib/db/schema";
+import { groups, users } from "@/lib/db/schema";
 import { requireAdminApi } from "@/lib/authz";
 import { recordAudit } from "@/lib/audit";
 import { generateId } from "@/lib/utils";
-import { hashPassword } from "@/lib/password";
-import { SETTING_KEYS, setSetting } from "@/lib/settings";
+
+/**
+ * Users are provisioned by the identity provider on first sign-in, and their
+ * group membership and admin rights are mirrored from token claims. So there is
+ * deliberately no "create user", no password field, and no membership editing
+ * here — only the levers the portal genuinely owns: suspend and delete.
+ */
 
 function refresh() {
   revalidatePath("/");
@@ -20,13 +25,20 @@ function str(form: FormData, key: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Groups (access groups, not display categories)
+// Groups
+//
+// Membership comes from the IdP, but the group RECORD is still managed here:
+// creating one by name lets a service be scoped to it before anyone in that
+// group has ever signed in. The name must match the IdP's group name.
 // ---------------------------------------------------------------------------
 
 export async function createGroup(form: FormData) {
   const actor = await requireAdminApi();
   const name = str(form, "name");
   if (!name) return;
+
+  const clash = await db.query.groups.findFirst({ where: eq(groups.name, name) });
+  if (clash) return;
 
   const [{ max }] = await db
     .select({ max: sql<number>`COALESCE(MAX(${groups.sortOrder}), -1)` })
@@ -80,9 +92,10 @@ export async function deleteGroup(form: FormData) {
   const existing = await db.query.groups.findFirst({ where: eq(groups.id, id) });
   if (!existing) return;
 
-  // Memberships and service scopings cascade away with the group. Any service
-  // still set to "groups" visibility with no groups left resolves to invisible
-  // for non-admins, which is the safe direction to fail.
+  // Memberships and service scopings cascade away. A service still set to
+  // "groups" visibility with no groups left resolves to invisible for
+  // non-admins, which is the safe direction to fail. Note the group will
+  // reappear if the IdP still sends its name on a later sign-in.
   await db.delete(groups).where(eq(groups.id, id));
 
   await recordAudit({
@@ -99,54 +112,18 @@ export async function deleteGroup(form: FormData) {
 // Users
 // ---------------------------------------------------------------------------
 
-export async function createUser(form: FormData) {
-  const actor = await requireAdminApi();
-  const username = str(form, "username").toLowerCase();
-  const password = String(form.get("password") ?? "");
-  if (!username) return;
-
-  const clash = await db.query.users.findFirst({ where: eq(users.username, username) });
-  if (clash) return;
-
-  const id = generateId();
-  await db.insert(users).values({
-    id,
-    username,
-    // No password means the account can only sign in via SSO.
-    passwordHash: password ? await hashPassword(password) : null,
-    displayName: str(form, "displayName") || username,
-    email: str(form, "email") || null,
-    isAdmin: form.get("isAdmin") !== null,
-    isBootstrap: false,
-    createdAt: new Date(),
-  });
-
-  await recordAudit({
-    actor,
-    action: "create",
-    entityType: "user",
-    entityId: id,
-    summary: `Created user "${username}"`,
-  });
-  refresh();
-}
-
-export async function updateUser(form: FormData) {
+/** Suspend or reactivate. Suspension takes effect on the user's next request. */
+export async function setUserActive(form: FormData) {
   const actor = await requireAdminApi();
   const id = str(form, "id");
+  const active = str(form, "active") === "true";
   if (!id) return;
 
   const target = await db.query.users.findFirst({ where: eq(users.id, id) });
   if (!target) return;
 
-  const wantsAdmin = form.get("isAdmin") !== null;
-  const wantsActive = form.get("isActive") !== null;
-
-  // Guard against locking everyone out of the admin area: refuse to demote or
-  // suspend the last remaining admin, and refuse to let an admin do either to
-  // themselves.
-  const losingAdminAccess = (target.isAdmin && !wantsAdmin) || (target.isAdmin && !wantsActive);
-  if (losingAdminAccess) {
+  // Never let the last active admin — or yourself — be suspended.
+  if (!active && target.isAdmin) {
     const [{ count }] = await db
       .select({ count: sql<number>`COUNT(*)` })
       .from(users)
@@ -154,31 +131,14 @@ export async function updateUser(form: FormData) {
     if (Number(count) <= 1 || target.id === actor.id) return;
   }
 
-  const newPassword = String(form.get("password") ?? "");
-
-  await db
-    .update(users)
-    .set({
-      displayName: str(form, "displayName") || target.username,
-      email: str(form, "email") || null,
-      // Deliberate admin action to link an existing local account to an SSO
-      // identity. Never inferred from a matching email address.
-      oidcSub: str(form, "oidcSub") || null,
-      isAdmin: wantsAdmin,
-      isActive: form.get("isActive") !== null,
-      ...(newPassword ? { passwordHash: await hashPassword(newPassword) } : {}),
-    })
-    .where(eq(users.id, id));
+  await db.update(users).set({ isActive: active }).where(eq(users.id, id));
 
   await recordAudit({
     actor,
     action: "update",
     entityType: "user",
     entityId: id,
-    summary:
-      `Updated user "${target.username}"` +
-      (newPassword ? " (password reset)" : "") +
-      (target.isAdmin !== wantsAdmin ? (wantsAdmin ? " (promoted to admin)" : " (demoted)") : ""),
+    summary: `${active ? "Reactivated" : "Suspended"} user "${target.username}"`,
   });
   refresh();
 }
@@ -191,11 +151,14 @@ export async function deleteUser(form: FormData) {
   const target = await db.query.users.findFirst({ where: eq(users.id, id) });
   if (!target) return;
 
+  // The bootstrap account is the way back in if the IdP breaks — never delete it.
+  if (target.isBootstrap) return;
+
   if (target.isAdmin) {
     const [{ count }] = await db
       .select({ count: sql<number>`COUNT(*)` })
       .from(users)
-      .where(eq(users.isAdmin, true));
+      .where(and(eq(users.isAdmin, true), eq(users.isActive, true)));
     if (Number(count) <= 1) return;
   }
 
@@ -205,75 +168,7 @@ export async function deleteUser(form: FormData) {
     action: "delete",
     entityType: "user",
     entityId: id,
-    summary: `Deleted user "${target.username}"`,
-  });
-  refresh();
-}
-
-/**
- * Sets which group brand-new SSO users are placed in. Without one they land on
- * a near-empty portal, seeing only "everyone" services.
- */
-export async function setDefaultGroup(form: FormData) {
-  const actor = await requireAdminApi();
-  const groupId = str(form, "groupId");
-
-  if (!groupId) {
-    await setSetting(SETTING_KEYS.defaultGroupId, "");
-    await recordAudit({
-      actor,
-      action: "update",
-      entityType: "group",
-      summary: "Cleared the default group for new SSO users",
-    });
-    refresh();
-    return;
-  }
-
-  const group = await db.query.groups.findFirst({ where: eq(groups.id, groupId) });
-  if (!group) return;
-
-  await setSetting(SETTING_KEYS.defaultGroupId, groupId);
-  await recordAudit({
-    actor,
-    action: "update",
-    entityType: "group",
-    entityId: groupId,
-    summary: `Set "${group.name}" as the default group for new SSO users`,
-  });
-  refresh();
-}
-
-/** Replaces a user's entire group membership with the submitted checkbox set. */
-export async function setUserGroups(form: FormData) {
-  const actor = await requireAdminApi();
-  const userId = str(form, "userId");
-  if (!userId) return;
-
-  const target = await db.query.users.findFirst({ where: eq(users.id, userId) });
-  if (!target) return;
-
-  const groupIds = form.getAll("groupIds").map(String).filter(Boolean);
-
-  await db.delete(userGroups).where(eq(userGroups.userId, userId));
-  if (groupIds.length > 0) {
-    await db.insert(userGroups).values(groupIds.map((groupId) => ({ userId, groupId })));
-  }
-
-  const names =
-    groupIds.length > 0
-      ? (await db.select().from(groups).orderBy(asc(groups.name)))
-          .filter((g) => groupIds.includes(g.id))
-          .map((g) => g.name)
-          .join(", ")
-      : "none";
-
-  await recordAudit({
-    actor,
-    action: "update",
-    entityType: "membership",
-    entityId: userId,
-    summary: `Set groups for "${target.username}" to: ${names}`,
+    summary: `Deleted user "${target.username}" (will be recreated if they sign in again)`,
   });
   refresh();
 }

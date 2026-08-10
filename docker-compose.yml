@@ -7,25 +7,20 @@ services:
       # Host 3020 — scorecard uses 3000, fatbearweek 3010
       - "3020:3000"
     volumes:
-      # SQLite database persists here
+      # SQLite database and uploaded service icons both persist here
       - ./data:/data
     environment:
+      # These two are the ONLY environment variables the app takes. Everything
+      # else — single sign-on, Uptime Kuma, session lifetime — is configured in
+      # the admin area and stored in the database.
       - DATABASE_PATH=/data/userportal.db
+      - UPLOADS_DIR=/data/uploads
       - NODE_ENV=production
-
-      # --- Uptime Kuma (both required for status indicators) ---
-      # - KUMA_BASE_URL=https://uptime.example.com
-      # - KUMA_STATUS_SLUG=services
-
-      # --- Authentik / OIDC (all three required for the SSO button) ---
-      # - OIDC_ISSUER=https://authentik.example.com/application/o/portal/
-      # - OIDC_CLIENT_ID=
-      # - OIDC_CLIENT_SECRET=
-
-      # Set false once SSO is confirmed working to close the break-glass login
-      # - LOCAL_LOGIN_ENABLED=true
-
       # - TZ=America/New_York
 
   # Point Pangolin at this container — no reverse-proxy labels are needed here,
   # Pangolin is configured separately.
+  #
+  # Recovery: if single sign-on is misconfigured and you're locked out, run
+  #   docker compose exec userportal node scripts/reset-admin.mjs
+  # then sign in at /login?local=1 with the printed password.
