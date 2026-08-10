@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { groups, users } from "@/lib/db/schema";
+import { groups, userGroups, users } from "@/lib/db/schema";
 import { requireAdminApi } from "@/lib/authz";
 import { recordAudit } from "@/lib/audit";
 import { generateId } from "@/lib/utils";
@@ -139,6 +139,57 @@ export async function setUserActive(form: FormData) {
     entityType: "user",
     entityId: id,
     summary: `${active ? "Reactivated" : "Suspended"} user "${target.username}"`,
+  });
+  refresh();
+}
+
+/**
+ * Sets the groups an admin grants directly in the portal.
+ *
+ * Only touches `source = 'portal'` rows — memberships that came from the
+ * identity provider are left alone, because the next sign-in would just
+ * reinstate them and pretending otherwise would be misleading.
+ */
+export async function setUserPortalGroups(form: FormData) {
+  const actor = await requireAdminApi();
+  const userId = str(form, "userId");
+  if (!userId) return;
+
+  const target = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  if (!target) return;
+
+  const groupIds = form.getAll("groupIds").map(String).filter(Boolean);
+
+  await db
+    .delete(userGroups)
+    .where(and(eq(userGroups.userId, userId), eq(userGroups.source, "portal")));
+
+  if (groupIds.length > 0) {
+    await db
+      .insert(userGroups)
+      .values(groupIds.map((groupId) => ({ userId, groupId, source: "portal" as const })))
+      // A group the IdP also grants is upgraded to a portal assignment, so it
+      // stops depending on the claim still being sent.
+      .onConflictDoUpdate({
+        target: [userGroups.userId, userGroups.groupId],
+        set: { source: "portal" },
+      });
+  }
+
+  const names =
+    groupIds.length > 0
+      ? (await db.select().from(groups))
+          .filter((g) => groupIds.includes(g.id))
+          .map((g) => g.name)
+          .join(", ")
+      : "none";
+
+  await recordAudit({
+    actor,
+    action: "update",
+    entityType: "membership",
+    entityId: userId,
+    summary: `Set portal groups for "${target.username}" to: ${names}`,
   });
   refresh();
 }

@@ -26,7 +26,12 @@ describe("mapKumaStatus", () => {
   it("maps UP to up", () => expect(mapKumaStatus(1)).toBe("up"));
   it("maps DOWN to down", () => expect(mapKumaStatus(0)).toBe("down"));
   it("maps PENDING to degraded", () => expect(mapKumaStatus(2)).toBe("degraded"));
-  it("maps MAINTENANCE to degraded", () => expect(mapKumaStatus(3)).toBe("degraded"));
+
+  it("maps MAINTENANCE to its own state, not degraded", () => {
+    // Planned downtime isn't a fault — reporting it as a warning makes a
+    // scheduled window look like something has gone wrong.
+    expect(mapKumaStatus(3)).toBe("maintenance");
+  });
   it("maps anything unrecognised to unknown", () => expect(mapKumaStatus(99)).toBe("unknown"));
 });
 
@@ -170,6 +175,33 @@ describe("parseKumaResponses", () => {
       NOW
     );
     expect(result.get("Broken")?.status).toBe("unknown");
+  });
+});
+
+describe("maintenance windows", () => {
+  it("surfaces a maintenance beat in the history for the strip", () => {
+    const result = parseKumaResponses(
+      page([{ id: 1, name: "A" }]),
+      {
+        heartbeatList: {
+          "1": [
+            { status: 3, time: recent },
+            { status: 1, time: recent },
+          ],
+        },
+      },
+      NOW
+    );
+    expect(result.get("A")!.history.map((b) => b.status)).toEqual(["maintenance", "up"]);
+  });
+
+  it("reports the current status as maintenance while the window is open", () => {
+    const result = parseKumaResponses(
+      page([{ id: 1, name: "A" }]),
+      { heartbeatList: { "1": [{ status: 1, time: recent }, { status: 3, time: recent }] } },
+      NOW
+    );
+    expect(result.get("A")!.status).toBe("maintenance");
   });
 });
 

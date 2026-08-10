@@ -10,6 +10,7 @@ const DOT: Record<ServiceStatus, string> = {
   up: "text-status-up",
   down: "text-status-down",
   degraded: "text-status-degraded",
+  maintenance: "text-status-maintenance",
   unknown: "text-status-unknown",
 };
 
@@ -17,6 +18,7 @@ const WORD: Record<ServiceStatus, string> = {
   up: "Up",
   down: "Down",
   degraded: "Degraded",
+  maintenance: "Maintenance",
   unknown: "Unknown",
 };
 
@@ -24,6 +26,7 @@ const WORD: Record<ServiceStatus, string> = {
 const GLYPH: Record<ServiceStatus, string> = {
   up: "●",
   degraded: "▲",
+  maintenance: "◆",
   down: "✕",
   unknown: "?",
 };

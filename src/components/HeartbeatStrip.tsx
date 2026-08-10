@@ -7,6 +7,7 @@ const BAR_COLOR: Record<ServiceStatus, string> = {
   up: "bg-status-up",
   down: "bg-status-down",
   degraded: "bg-status-degraded",
+  maintenance: "bg-status-maintenance",
   unknown: "bg-status-unknown/40",
 };
 
@@ -14,6 +15,7 @@ const STATUS_WORD: Record<ServiceStatus, string> = {
   up: "up",
   down: "down",
   degraded: "degraded",
+  maintenance: "maintenance",
   unknown: "no data",
 };
 

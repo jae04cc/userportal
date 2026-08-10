@@ -1,17 +1,20 @@
 name: Docker
 
-# Manual only, deliberately.
+# Publishes jae04cc/userportal:latest and :<sha> to Docker Hub.
 #
-# Publishing an image is an outward-facing action and this repo has no registry
-# credentials configured, so running it on every push just failed every push.
-# Run it from the Actions tab once you've decided where images should go.
+# Requires two repository secrets — Settings → Secrets and variables → Actions:
+#   DOCKERHUB_USERNAME  your Docker Hub username
+#   DOCKERHUB_TOKEN     a Docker Hub access token with Read & Write
 #
-# To publish to Docker Hub (matching scorecard/fatbearweek), add repository
-# secrets DOCKERHUB_USERNAME and DOCKERHUB_TOKEN, then optionally re-add:
-#   on:
-#     push:
-#       branches: [main]
+# The preflight step below fails with a clear message if either is missing,
+# rather than letting the login action emit an opaque error.
+#
+# Still manual-only until those secrets exist — enabling the push trigger first
+# would just fail on every commit. Once they're set, uncomment the push block to
+# publish automatically on every merge to main.
 on:
+  # push:
+  #   branches: [main]
   workflow_dispatch:
 
 jobs:

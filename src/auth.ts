@@ -1,6 +1,6 @@
 import NextAuth, { type DefaultSession, type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db, ensureDbReady } from "@/lib/db";
 import { appSettings, groups, userGroups, users } from "@/lib/db/schema";
 import { verifyPassword } from "@/lib/password";
@@ -58,14 +58,15 @@ async function getOrCreateSecret(): Promise<string> {
 /**
  * Mirrors the IdP's groups onto the portal user.
  *
- * Authentik is the sole source of truth: whatever the claim says REPLACES the
- * user's stored membership. Group rows are matched case-insensitively by name
- * and created on first sight, so a new Authentik group becomes usable for
- * service scoping as soon as one member signs in.
+ * Only IdP-sourced memberships are replaced. Anything an admin assigned in the
+ * portal is left alone, so the two sources coexist: effective membership is the
+ * union. A claim naming a group that already exists here simply joins the user
+ * to that existing group — matched case-insensitively by name — and a claim
+ * naming an unknown group creates it.
  *
- * Admin rights are derived the same way, from the configured admin group. The
- * local bootstrap account is exempt — it keeps its own is_admin flag, which is
- * what stops a broken IdP config locking everyone out.
+ * Admin rights still come purely from the configured admin group. The local
+ * bootstrap account is exempt: it keeps its own is_admin flag, which is what
+ * stops a broken IdP config locking everyone out.
  */
 async function syncFromClaims(userId: string, claims: Record<string, unknown>) {
   const config = await getOidcConfig();
@@ -104,10 +105,19 @@ async function syncFromClaims(userId: string, claims: Record<string, unknown>) {
     groupIds.push(group.id);
   }
 
-  // Replace membership wholesale — the IdP is authoritative.
-  await db.delete(userGroups).where(eq(userGroups.userId, userId));
+  // Replace only what the IdP previously granted. Portal-assigned rows survive.
+  await db
+    .delete(userGroups)
+    .where(and(eq(userGroups.userId, userId), eq(userGroups.source, "idp")));
+
   if (groupIds.length > 0) {
-    await db.insert(userGroups).values(groupIds.map((groupId) => ({ userId, groupId })));
+    await db
+      .insert(userGroups)
+      .values(groupIds.map((groupId) => ({ userId, groupId, source: "idp" as const })))
+      // If an admin already granted this group here, keep it as the stronger
+      // 'portal' assignment rather than downgrading it to one the next sync
+      // could revoke.
+      .onConflictDoNothing();
   }
 
   await db.update(users).set({ isAdmin, lastLoginAt: new Date() }).where(eq(users.id, userId));

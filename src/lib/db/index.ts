@@ -89,6 +89,7 @@ export async function runMigrations() {
     CREATE TABLE IF NOT EXISTS user_groups (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+      source TEXT NOT NULL DEFAULT 'portal',
       PRIMARY KEY (user_id, group_id)
     );
 
@@ -172,6 +173,15 @@ export async function runMigrations() {
     await client.execute(
       "ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0"
     );
+  }
+
+  const memberCols = await client.execute("PRAGMA table_info(user_groups)");
+  if (!memberCols.rows.some((r) => r[1] === "source")) {
+    // Existing rows predate the portal/IdP distinction. They were written by
+    // the claim sync, so 'idp' is the honest default for them — marking them
+    // 'portal' would pin memberships the IdP no longer grants.
+    await client.execute("ALTER TABLE user_groups ADD COLUMN source TEXT NOT NULL DEFAULT 'portal'");
+    await client.execute("UPDATE user_groups SET source = 'idp'");
   }
 }
 

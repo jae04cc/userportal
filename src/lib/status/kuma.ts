@@ -41,11 +41,11 @@ export type KumaHeartbeatResponse = {
 };
 
 /**
- * Maps Kuma's heartbeat code onto the portal's four states.
+ * Maps Kuma's heartbeat code onto the portal's states.
  *
- * Kuma has no native "degraded" — PENDING (failing but still inside its retry
- * budget) and MAINTENANCE are the two conditions that are meaningfully "not
- * healthy, not down", so both surface as degraded.
+ * Kuma has no native "degraded"; PENDING means failing but still inside its
+ * retry budget, which is exactly that. MAINTENANCE is kept separate — a planned
+ * window is not a fault, and colouring it as a warning misreports it.
  */
 export function mapKumaStatus(code: number): ServiceStatus {
   switch (code) {
@@ -54,8 +54,9 @@ export function mapKumaStatus(code: number): ServiceStatus {
     case KUMA_DOWN:
       return "down";
     case KUMA_PENDING:
-    case KUMA_MAINTENANCE:
       return "degraded";
+    case KUMA_MAINTENANCE:
+      return "maintenance";
     default:
       return "unknown";
   }

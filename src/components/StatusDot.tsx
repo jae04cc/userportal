@@ -5,6 +5,7 @@ const DOT: Record<ServiceStatus, string> = {
   up: "bg-status-up",
   down: "bg-status-down",
   degraded: "bg-status-degraded",
+  maintenance: "bg-status-maintenance",
   unknown: "bg-status-unknown",
 };
 
@@ -12,6 +13,7 @@ const WORD: Record<ServiceStatus, string> = {
   up: "Up",
   down: "Down",
   degraded: "Degraded",
+  maintenance: "Maintenance",
   unknown: "Unknown",
 };
 

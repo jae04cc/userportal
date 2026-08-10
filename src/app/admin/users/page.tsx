@@ -2,7 +2,7 @@ import { asc } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { groups, userGroups, users } from "@/lib/db/schema";
 import { Button, Panel } from "@/components/admin/ui";
-import { deleteUser, setUserActive } from "@/lib/actions/people";
+import { deleteUser, setUserActive, setUserPortalGroups } from "@/lib/actions/people";
 import { getOidcConfig } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -16,10 +16,18 @@ export default async function AdminUsersPage() {
   ]);
 
   const groupNames = new Map(allGroups.map((g) => [g.id, g.name]));
-  const groupsByUser = new Map<string, string[]>();
+
+  // Kept apart because only the portal-assigned set is editable here.
+  const portalGroupIds = new Map<string, string[]>();
+  const idpGroupNames = new Map<string, string[]>();
   for (const m of memberships) {
     const name = groupNames.get(m.groupId);
-    if (name) groupsByUser.set(m.userId, [...(groupsByUser.get(m.userId) ?? []), name]);
+    if (!name) continue;
+    if (m.source === "idp") {
+      idpGroupNames.set(m.userId, [...(idpGroupNames.get(m.userId) ?? []), name]);
+    } else {
+      portalGroupIds.set(m.userId, [...(portalGroupIds.get(m.userId) ?? []), m.groupId]);
+    }
   }
 
   return (
@@ -27,12 +35,13 @@ export default async function AdminUsersPage() {
       <Panel title="How users get here">
         <p className="text-sm text-slate-400">
           Accounts are created automatically the first time someone signs in through{" "}
-          {oidc.enabled ? oidc.displayName : "your identity provider"}. Group membership and admin
-          rights are mirrored from their token on every sign-in, so they can&apos;t be edited here —
-          change them in your identity provider instead.
+          {oidc.enabled ? oidc.displayName : "your identity provider"}.
         </p>
         <p className="mt-2 text-sm text-slate-400">
-          What the portal does own: suspending access immediately, and removing the local record.
+          Group membership comes from <strong className="text-slate-200">two sources</strong>: what
+          your identity provider sends in the groups claim, and what you grant here. A user gets
+          both. Claim-derived groups refresh on every sign-in; groups you grant here stick until you
+          remove them. Admin rights come only from the configured admin group.
         </p>
       </Panel>
 
@@ -42,7 +51,8 @@ export default async function AdminUsersPage() {
         ) : (
           <ul className="space-y-2">
             {allUsers.map((user) => {
-              const userGroupNames = groupsByUser.get(user.id) ?? [];
+              const portalIds = portalGroupIds.get(user.id) ?? [];
+              const idpNames = idpGroupNames.get(user.id) ?? [];
 
               return (
                 <li
@@ -83,15 +93,48 @@ export default async function AdminUsersPage() {
                     </span>
                   </div>
 
-                  <p className="mb-3 text-xs text-slate-500">
-                    Groups:{" "}
-                    {userGroupNames.length > 0 ? (
-                      <span className="text-slate-300">{userGroupNames.join(", ")}</span>
-                    ) : (
-                      <span className="text-slate-600">none</span>
-                    )}
-                    {user.oidcSub ? " — synced from your identity provider" : ""}
-                  </p>
+                  {idpNames.length > 0 ? (
+                    <p className="mb-2 text-xs text-slate-500">
+                      From your identity provider:{" "}
+                      <span className="text-slate-300">{idpNames.join(", ")}</span>{" "}
+                      <span className="text-slate-600">
+                        (refreshed on each sign-in, not editable here)
+                      </span>
+                    </p>
+                  ) : null}
+
+                  <form action={setUserPortalGroups} className="mb-3">
+                    <input type="hidden" name="userId" value={user.id} />
+                    <fieldset>
+                      <legend className="mb-1.5 text-xs text-slate-500">
+                        Groups granted in the portal
+                      </legend>
+                      {allGroups.length === 0 ? (
+                        <p className="mb-2 text-xs text-slate-600">
+                          No groups yet — create one on the Groups tab.
+                        </p>
+                      ) : (
+                        <div className="mb-2 flex flex-wrap gap-3">
+                          {allGroups.map((g) => (
+                            <label
+                              key={g.id}
+                              className="flex items-center gap-2 text-sm text-slate-300"
+                            >
+                              <input
+                                type="checkbox"
+                                name="groupIds"
+                                value={g.id}
+                                defaultChecked={portalIds.includes(g.id)}
+                                className="h-4 w-4"
+                              />
+                              {g.name}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </fieldset>
+                    <Button type="submit">Save groups</Button>
+                  </form>
 
                   <div className="flex flex-wrap gap-2">
                     <form action={setUserActive}>

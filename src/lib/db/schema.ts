@@ -38,6 +38,9 @@ export const groups = sqliteTable("groups", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 
+/** Where a membership came from. Determines who is allowed to remove it. */
+export type MembershipSource = "portal" | "idp";
+
 export const userGroups = sqliteTable(
   "user_groups",
   {
@@ -47,6 +50,16 @@ export const userGroups = sqliteTable(
     groupId: text("group_id")
       .notNull()
       .references(() => groups.id, { onDelete: "cascade" }),
+    /**
+     * "portal" — assigned by an admin here; survives every sign-in.
+     * "idp"    — derived from the identity provider's groups claim; replaced
+     *            wholesale on each sign-in.
+     *
+     * Effective membership is the union of both, so a group can be granted
+     * here, by the IdP, or by both — and an IdP sync can never silently drop
+     * an assignment an admin made deliberately.
+     */
+    source: text("source").$type<MembershipSource>().notNull().default("portal"),
   },
   (t) => ({
     pk: primaryKey({ columns: [t.userId, t.groupId] }),

@@ -1,4 +1,9 @@
-export type ServiceStatus = "up" | "down" | "degraded" | "unknown";
+/**
+ * `maintenance` is deliberately distinct from `degraded`: planned downtime is
+ * not a fault, and showing it as a warning makes a scheduled window look like
+ * something is wrong.
+ */
+export type ServiceStatus = "up" | "down" | "degraded" | "maintenance" | "unknown";
 
 /** One check, as rendered by a single bar in the status pane's heartbeat strip. */
 export type Beat = {

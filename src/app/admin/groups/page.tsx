@@ -23,14 +23,19 @@ export default async function AdminGroupsPage() {
     <>
       <Panel title="How groups work">
         <p className="text-sm text-slate-400">
-          Group <em>membership</em> is mirrored from your identity provider on every sign-in and
-          can&apos;t be edited here. A group named in someone&apos;s token appears automatically the
-          first time they sign in.
+          Groups live here in the portal — create as many as you like. You assign people to them on
+          the <strong className="text-slate-200">Users</strong> tab.
         </p>
         <p className="mt-2 text-sm text-slate-400">
-          Create a group below only when you need to scope a service to it{" "}
-          <strong className="text-slate-200">before</strong> anyone in that group has signed in. The
-          name must match your identity provider exactly — matching is case-insensitive.
+          Your identity provider can also grant membership: if a groups claim names a group that
+          already exists here, that user joins it. A claim naming a group that doesn&apos;t exist
+          yet creates it. Name matching is case-insensitive, so{" "}
+          <code className="rounded bg-surface-base px-1 text-slate-200">Media</code> here matches{" "}
+          <code className="rounded bg-surface-base px-1 text-slate-200">media</code> there.
+        </p>
+        <p className="mt-2 text-sm text-slate-400">
+          The two sources coexist. Claim-derived membership refreshes on every sign-in; what you
+          assign here is never touched by a sync.
         </p>
         {oidc.adminGroup ? (
           <p className="mt-2 text-sm text-slate-400">
@@ -41,12 +46,12 @@ export default async function AdminGroupsPage() {
         ) : null}
       </Panel>
 
-      <Panel title="Add a group by name">
+      <Panel title="Add a group">
         <form action={createGroup} className="grid gap-3 sm:grid-cols-2">
           <Field
             label="Group name"
             htmlFor="new-group-name"
-            hint="Must match the group name in your identity provider."
+            hint="To also accept members from your identity provider, match its group name."
           >
             <input id="new-group-name" name="name" required className={inputClass} />
           </Field>
@@ -95,7 +100,7 @@ export default async function AdminGroupsPage() {
                     <Button type="submit">Save</Button>
                     <span className="text-xs text-slate-600">
                       {countByGroup.get(group.id) ?? 0} member
-                      {(countByGroup.get(group.id) ?? 0) === 1 ? "" : "s"} synced
+                      {(countByGroup.get(group.id) ?? 0) === 1 ? "" : "s"}
                     </span>
                   </div>
                 </form>

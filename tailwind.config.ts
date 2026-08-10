@@ -22,6 +22,8 @@ const config: Config = {
           up: "#0ca30c", // good
           degraded: "#fab219", // warning
           down: "#d03b3b", // critical
+          // Informational, not a fault — planned maintenance windows.
+          maintenance: "#3987e5",
           unknown: "#898781", // muted — "no data", deliberately achromatic
         },
       },
