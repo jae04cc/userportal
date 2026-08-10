@@ -7,6 +7,7 @@ import { categories, services, serviceGroups, type ServiceVisibility } from "@/l
 import { requireAdminApi } from "@/lib/authz";
 import { recordAudit } from "@/lib/audit";
 import { setMotd } from "@/lib/services";
+import { SETTING_KEYS, setSetting } from "@/lib/settings";
 import { generateId } from "@/lib/utils";
 import { safeUrlOrNull, isSafeIcon } from "@/lib/urls";
 
@@ -48,6 +49,32 @@ export async function updateMotd(form: FormData) {
     action: "update",
     entityType: "motd",
     summary: value.trim() ? "Updated the message of the day" : "Cleared the message of the day",
+  });
+  refresh();
+}
+
+/**
+ * Portal name and icon accent. These drive the generated PWA icon, the manifest
+ * and the document title — i.e. how this install is told apart from another one
+ * on the same phone's home screen.
+ */
+export async function updateIdentity(form: FormData) {
+  const actor = await requireAdminApi();
+
+  const name = str(form, "portalName").slice(0, 40);
+  const accent = str(form, "portalAccent");
+  if (!name) return;
+  // Interpolated into generated images and the manifest — only plain hex.
+  if (!/^#[0-9a-f]{6}$/i.test(accent)) return;
+
+  await setSetting(SETTING_KEYS.portalName, name);
+  await setSetting(SETTING_KEYS.portalAccent, accent);
+
+  await recordAudit({
+    actor,
+    action: "update",
+    entityType: "motd",
+    summary: `Set portal name to "${name}" with accent ${accent}`,
   });
   refresh();
 }

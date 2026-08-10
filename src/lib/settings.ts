@@ -19,6 +19,11 @@ import { appSettings } from "@/lib/db/schema";
 export const SETTING_KEYS = {
   motd: "motd",
 
+  /** Shown in the title bar and, crucially, under the home-screen icon. */
+  portalName: "portal_name",
+  /** Icon accent colour — the fastest way to tell two installs apart. */
+  portalAccent: "portal_accent",
+
   kumaBaseUrl: "kuma_base_url",
   kumaStatusSlug: "kuma_status_slug",
   kumaShowUptime: "kuma_show_uptime",
@@ -164,6 +169,34 @@ export async function getOidcConfig(): Promise<OidcConfig> {
     adminGroup: (saved[SETTING_KEYS.oidcAdminGroup] ?? "").trim(),
     enabled: Boolean(issuer && clientId && clientSecret),
   };
+}
+
+export type PortalIdentity = { name: string; accent: string };
+
+/** Preset accents, so two installs are distinguishable at a glance on a home screen. */
+export const ACCENT_PRESETS = [
+  { value: "#38bdf8", label: "Sky" },
+  { value: "#34d399", label: "Green" },
+  { value: "#a78bfa", label: "Violet" },
+  { value: "#fb923c", label: "Orange" },
+  { value: "#f472b6", label: "Pink" },
+  { value: "#facc15", label: "Yellow" },
+  { value: "#f87171", label: "Red" },
+  { value: "#94a3b8", label: "Slate" },
+] as const;
+
+const DEFAULT_ACCENT = "#38bdf8";
+
+export async function getPortalIdentity(): Promise<PortalIdentity> {
+  const saved = await getSettings([SETTING_KEYS.portalName, SETTING_KEYS.portalAccent]);
+
+  const name = (saved[SETTING_KEYS.portalName] ?? "").trim() || "Portal";
+  const rawAccent = (saved[SETTING_KEYS.portalAccent] ?? "").trim();
+  // Only accept a plain hex colour — this value is interpolated into generated
+  // SVG/PNG and into the manifest.
+  const accent = /^#[0-9a-f]{6}$/i.test(rawAccent) ? rawAccent : DEFAULT_ACCENT;
+
+  return { name, accent };
 }
 
 export type PaneColumns = 1 | 2 | 3;
