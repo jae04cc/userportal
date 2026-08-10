@@ -20,11 +20,7 @@ const WORD: Record<ServiceStatus, string> = {
   unknown: "Unknown",
 };
 
-/**
- * Distinct SHAPES, not just distinct colours. At narrow widths there's no room
- * for the status word, and colour alone must never carry the meaning — so the
- * glyph is the channel that's always present.
- */
+/** Distinct shapes, so the inline layout never leans on colour alone. */
 const GLYPH: Record<ServiceStatus, string> = {
   up: "●",
   degraded: "▲",
@@ -32,37 +28,10 @@ const GLYPH: Record<ServiceStatus, string> = {
   unknown: "?",
 };
 
-/**
- * The column count is honoured at every width, including phones — picking 3
- * and getting 1 on mobile is the bug this replaces. Density is handled by
- * dropping tile *contents* as columns get narrower, not by overriding the
- * choice. Tailwind needs static class names, hence the lookup.
- */
-const LAYOUT: Record<
-  number,
-  { grid: string; strip: string; word: string; uptime: string; ping: string }
-> = {
-  1: {
-    grid: "grid-cols-1",
-    strip: "w-24 sm:w-32 lg:w-40",
-    word: "inline",
-    uptime: "inline",
-    ping: "hidden sm:inline",
-  },
-  2: {
-    grid: "grid-cols-2",
-    strip: "w-12 sm:w-24 lg:w-32",
-    word: "hidden sm:inline",
-    uptime: "hidden md:inline",
-    ping: "hidden lg:inline",
-  },
-  3: {
-    grid: "grid-cols-3",
-    strip: "w-8 sm:w-16 lg:w-24",
-    word: "hidden lg:inline",
-    uptime: "hidden lg:inline",
-    ping: "hidden xl:inline",
-  },
+const COLUMN_CLASS: Record<number, string> = {
+  1: "grid-cols-1",
+  2: "grid-cols-2",
+  3: "grid-cols-3",
 };
 
 /** "99.8%" — never a bare "100%" for something that is actually 99.96%. */
@@ -76,7 +45,12 @@ function formatUptime(uptime24h: number | null): string | null {
  * A glanceable strip above the message of the day — deliberately subordinate to
  * the MOTD and the service cards below it.
  *
- * Each tile is a single row: status glyph, label, heartbeat strip, figures.
+ * Two layouts:
+ *  - one column: everything on a single row, with a status glyph, since a
+ *    full-width strip there would be absurdly long.
+ *  - two or three columns: label on top, strip beneath at full tile width. The
+ *    rightmost bar IS the current status, so there's no separate indicator —
+ *    it would just restate the graph.
  */
 export function StatusPane({
   items,
@@ -91,7 +65,7 @@ export function StatusPane({
 }) {
   if (items.length === 0) return null;
 
-  const layout = LAYOUT[columns] ?? LAYOUT[2];
+  const stacked = columns >= 2;
 
   return (
     <section aria-labelledby="status-pane-heading" className="mb-6">
@@ -99,19 +73,58 @@ export function StatusPane({
         Service status
       </h2>
 
-      <div className={cn("grid gap-x-2 gap-y-1", layout.grid)}>
+      <div className={cn("grid gap-x-2 gap-y-1", COLUMN_CLASS[columns] ?? COLUMN_CLASS[2])}>
         {items.map((item) => {
           const health = statuses[item.id] ?? UNKNOWN;
           const uptime = formatUptime(health.uptime24h);
           const word = WORD[health.status] ?? WORD.unknown;
+          const healthy = health.status === "up";
+
+          const figures = (
+            <>
+              {/* Only named when something is wrong. A healthy tile stays clean;
+                  a problem never relies on colour alone to announce itself. */}
+              {!healthy ? (
+                <span className={cn("font-medium", DOT[health.status] ?? DOT.unknown)}>{word}</span>
+              ) : null}
+              {uptime ? (
+                <span className="hidden sm:inline" title="Uptime over the last 24 hours">
+                  {uptime}
+                </span>
+              ) : null}
+              {showPing && health.ping !== null ? (
+                <span className="hidden lg:inline" title="Most recent response time">
+                  {Math.round(health.ping)}ms
+                </span>
+              ) : null}
+            </>
+          );
+
+          if (stacked) {
+            return (
+              <div
+                key={item.id}
+                className="rounded-md border border-surface-border bg-surface-raised px-2.5 py-1.5"
+              >
+                <div className="mb-1 flex items-baseline gap-2">
+                  <span className="min-w-0 truncate text-xs font-medium text-slate-200">
+                    {item.label}
+                  </span>
+                  <span className="ml-auto flex shrink-0 items-baseline gap-2 text-[11px] tabular-nums text-slate-500">
+                    {figures}
+                  </span>
+                </div>
+                <span className="sr-only">{word}</span>
+                <HeartbeatStrip history={health.history} label={item.label} variant="stacked" />
+              </div>
+            );
+          }
 
           return (
             <div
               key={item.id}
-              className="flex items-center gap-1.5 rounded-md border border-surface-border bg-surface-raised px-2 py-1.5 sm:gap-2.5 sm:px-2.5"
+              className="flex items-center gap-2.5 rounded-md border border-surface-border bg-surface-raised px-2.5 py-1.5"
             >
-              {/* Shape + colour. The sr-only word keeps the state readable even
-                  when the visible label is dropped for width. */}
               <span
                 aria-hidden="true"
                 className={cn("shrink-0 text-[9px] leading-none", DOT[health.status] ?? DOT.unknown)}
@@ -124,23 +137,12 @@ export function StatusPane({
                 {item.label}
               </span>
 
-              <span className={cn("ml-auto shrink-0", layout.strip)}>
-                <HeartbeatStrip history={health.history} label={item.label} />
+              <span className="ml-auto w-24 shrink-0 sm:w-32 lg:w-40">
+                <HeartbeatStrip history={health.history} label={item.label} variant="inline" />
               </span>
 
-              {/* Figures sit in text tokens, never the status colour. */}
-              <span className="flex shrink-0 items-center gap-2 text-[11px] tabular-nums text-slate-500">
-                <span className={cn("text-right text-slate-400", layout.word)}>{word}</span>
-                {uptime ? (
-                  <span className={cn("text-right", layout.uptime)} title="Uptime over the last 24 hours">
-                    {uptime}
-                  </span>
-                ) : null}
-                {showPing && health.ping !== null ? (
-                  <span className={cn("text-right", layout.ping)} title="Most recent response time">
-                    {Math.round(health.ping)}ms
-                  </span>
-                ) : null}
+              <span className="flex shrink-0 items-baseline gap-2 text-[11px] tabular-nums text-slate-500">
+                {figures}
               </span>
             </div>
           );
