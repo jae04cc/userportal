@@ -188,12 +188,22 @@ export const ACCENT_PRESETS = [
 const DEFAULT_ACCENT = "#38bdf8";
 
 export async function getPortalIdentity(): Promise<PortalIdentity> {
-  const saved = await getSettings([SETTING_KEYS.portalName, SETTING_KEYS.portalAccent]);
+  let saved: Record<string, string> = {};
+
+  try {
+    saved = await getSettings([SETTING_KEYS.portalName, SETTING_KEYS.portalAccent]);
+  } catch {
+    // The root layout reads this for every page's metadata, including the
+    // statically generated /_not-found — which runs at BUILD time, where there
+    // is no database. Branding is not worth failing a build (or a request) for;
+    // fall back to the defaults.
+    return { name: "Portal", accent: DEFAULT_ACCENT };
+  }
 
   const name = (saved[SETTING_KEYS.portalName] ?? "").trim() || "Portal";
   const rawAccent = (saved[SETTING_KEYS.portalAccent] ?? "").trim();
   // Only accept a plain hex colour — this value is interpolated into generated
-  // SVG/PNG and into the manifest.
+  // images and into the manifest.
   const accent = /^#[0-9a-f]{6}$/i.test(rawAccent) ? rawAccent : DEFAULT_ACCENT;
 
   return { name, accent };
