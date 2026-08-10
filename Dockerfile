@@ -3,7 +3,10 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+# `npm install` rather than `npm ci`: npm 11.x omits `"optional": true` on
+# vitest's nested @esbuild/* platform packages, which makes `npm ci` fail with
+# EBADPLATFORM on Linux. See the same note in .github/workflows/ci.yml.
+RUN npm install --no-audit --no-fund
 
 FROM node:20-alpine AS builder
 WORKDIR /app
