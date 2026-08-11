@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { StatusDot } from "./StatusDot";
 import { ServiceModal } from "./ServiceModal";
+import { cardStyle, type CardLayouts, type CardStyle } from "./cardStyles";
 import { UNKNOWN, type MonitorHealth } from "@/lib/status/types";
 import type { ServiceKind } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
@@ -33,25 +34,18 @@ export type ClientCategory = {
   services: ClientService[];
 };
 
-export type CardLayout = "detailed" | "compact";
-
-const GRID_CLASS: Record<CardLayout, string> = {
-  // Roomy rows: one per line on a phone, filling out as space allows.
-  detailed: "grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(17rem,1fr))]",
-  // Dense tiles: three across even on a phone.
-  compact: "grid-cols-3 sm:grid-cols-[repeat(auto-fill,minmax(9rem,1fr))]",
-};
-
 export function ServiceGrid({
   categories,
   statuses,
-  layout,
+  layouts,
 }: {
   categories: ClientCategory[];
   /** Supplied by LiveArea, which owns the single poll for the page. */
   statuses: Record<string, MonitorHealth>;
-  layout: CardLayout;
+  layouts: CardLayouts;
 }) {
+  const style = cardStyle(layouts);
+
   if (categories.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-surface-border px-4 py-8 text-center text-sm text-slate-400">
@@ -70,12 +64,12 @@ export function ServiceGrid({
           >
             {category.name}
           </h2>
-          <div className={cn("grid gap-2 sm:gap-3", GRID_CLASS[layout])}>
+          <div className={cn("grid gap-2 sm:gap-3", style.grid)}>
             {category.services.map((service) => (
               <ServiceCard
                 key={service.id}
                 service={service}
-                layout={layout}
+                style={style}
                 health={service.hasMonitor ? (statuses[service.id] ?? UNKNOWN) : null}
               />
             ))}
@@ -89,20 +83,17 @@ export function ServiceGrid({
 function ServiceCard({
   service,
   health,
-  layout,
+  style,
 }: {
   service: ClientService;
   health: MonitorHealth | null;
-  layout: CardLayout;
+  style: CardStyle;
 }) {
   const [open, setOpen] = useState(false);
-  const compact = layout === "compact";
 
   const shell = cn(
-    "group relative rounded-lg border border-surface-border bg-surface-raised text-left transition-colors hover:border-slate-600 hover:bg-surface-hover",
-    compact
-      ? "flex min-h-[6rem] flex-col items-center justify-center gap-2 p-3 text-center"
-      : "flex min-h-[5rem] items-center gap-3.5 p-3.5 sm:p-4"
+    "group relative rounded-lg border border-surface-border bg-surface-raised transition-colors hover:border-slate-600 hover:bg-surface-hover",
+    style.shell
   );
 
   const label = health ? `${service.name}, status: ${health.status}` : service.name;
@@ -113,24 +104,12 @@ function ServiceCard({
 
       {service.icon}
 
-      {compact ? (
-        <span className="line-clamp-2 text-xs font-medium leading-tight text-slate-100">
-          {service.name}
-        </span>
-      ) : (
-        // min-w-0 lets the text truncate instead of stretching the card, and
-        // keeps the name and description sharing one left edge.
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-base font-medium text-slate-100">
-            {service.name}
-          </span>
-          {service.description ? (
-            <span className="mt-0.5 block truncate text-sm text-slate-400">
-              {service.description}
-            </span>
-          ) : null}
-        </span>
-      )}
+      <span className={style.body}>
+        <span className={cn(style.name, "text-slate-100")}>{service.name}</span>
+        {service.description ? (
+          <span className={cn(style.description, "text-slate-400")}>{service.description}</span>
+        ) : null}
+      </span>
     </>
   );
 

@@ -80,17 +80,20 @@ export async function updateIdentity(form: FormData) {
   refresh();
 }
 
-/** How service cards are laid out on the landing page. */
+/** Card layout, chosen independently for phones and wider screens. */
 export async function setCardLayout(form: FormData) {
   const actor = await requireAdminApi();
-  const layout = str(form, "layout") === "compact" ? "compact" : "detailed";
+  const mobile = str(form, "mobile") === "detailed" ? "detailed" : "compact";
+  const desktop = str(form, "desktop") === "compact" ? "compact" : "detailed";
 
-  await setSetting(SETTING_KEYS.serviceCardLayout, layout);
+  await setSetting(SETTING_KEYS.serviceCardLayoutMobile, mobile);
+  await setSetting(SETTING_KEYS.serviceCardLayoutDesktop, desktop);
+
   await recordAudit({
     actor,
     action: "update",
     entityType: "service",
-    summary: `Set service card layout to ${layout}`,
+    summary: `Set card layout to ${mobile} on mobile, ${desktop} on desktop`,
   });
   refresh();
 }

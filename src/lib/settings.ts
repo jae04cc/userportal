@@ -31,8 +31,9 @@ export const SETTING_KEYS = {
   statusPaneShowPing: "status_pane_show_ping",
   /** How many tiles sit side by side: "1" | "2" | "3". */
   statusPaneColumns: "status_pane_columns",
-  /** Service card layout: "detailed" | "compact". */
-  serviceCardLayout: "service_card_layout",
+  /** Service card layout per breakpoint: "detailed" | "compact". */
+  serviceCardLayoutMobile: "service_card_layout_mobile",
+  serviceCardLayoutDesktop: "service_card_layout_desktop",
 
   oidcIssuer: "oidc_issuer",
   oidcClientId: "oidc_client_id",
@@ -214,14 +215,32 @@ export async function getPortalIdentity(): Promise<PortalIdentity> {
 export type CardLayout = "detailed" | "compact";
 
 /**
- * "detailed" — icon left, name and description stacked beside it. One card per
- *              row on a phone.
- * "compact"  — icon above a centred name, three across on a phone. Drops the
- *              description; there's no room for it at that size.
+ * "detailed" — icon beside a name and description, one card per row on a phone.
+ * "compact"  — icon above a centred name, three across. Drops the description;
+ *              there's no room for it at that width.
+ *
+ * Chosen independently per breakpoint, because the right answer genuinely
+ * differs: compact suits a phone where three tiles fit a thumb's reach, while a
+ * wide screen has room for descriptions.
  */
-export async function getServiceCardLayout(): Promise<CardLayout> {
-  const raw = await getSetting(SETTING_KEYS.serviceCardLayout);
-  return raw === "compact" ? "compact" : "detailed";
+export type CardLayouts = { mobile: CardLayout; desktop: CardLayout };
+
+function parseLayout(raw: string | null, fallback: CardLayout): CardLayout {
+  if (raw === "compact") return "compact";
+  if (raw === "detailed") return "detailed";
+  return fallback;
+}
+
+export async function getServiceCardLayouts(): Promise<CardLayouts> {
+  const saved = await getSettings([
+    SETTING_KEYS.serviceCardLayoutMobile,
+    SETTING_KEYS.serviceCardLayoutDesktop,
+  ]);
+
+  return {
+    mobile: parseLayout(saved[SETTING_KEYS.serviceCardLayoutMobile] ?? null, "compact"),
+    desktop: parseLayout(saved[SETTING_KEYS.serviceCardLayoutDesktop] ?? null, "detailed"),
+  };
 }
 
 export type PaneColumns = 1 | 2 | 3;

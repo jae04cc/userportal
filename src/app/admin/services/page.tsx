@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { categories, groups, services, serviceGroups } from "@/lib/db/schema";
 import { Button, Field, Panel, inputClass } from "@/components/admin/ui";
 import { ServiceForm } from "@/components/admin/ServiceForm";
-import { getServiceCardLayout } from "@/lib/settings";
+import { getServiceCardLayouts } from "@/lib/settings";
 import {
   createCategory,
   setCardLayout,
@@ -25,12 +25,12 @@ const VISIBILITY_LABEL = {
 } as const;
 
 export default async function AdminServicesPage() {
-  const [allCategories, allServices, allGroups, allServiceGroups, cardLayout] = await Promise.all([
+  const [allCategories, allServices, allGroups, allServiceGroups, cardLayouts] = await Promise.all([
     db.select().from(categories).orderBy(asc(categories.sortOrder), asc(categories.name)),
     db.select().from(services).orderBy(asc(services.sortOrder), asc(services.name)),
     db.select().from(groups).orderBy(asc(groups.sortOrder), asc(groups.name)),
     db.select().from(serviceGroups),
-    getServiceCardLayout(),
+    getServiceCardLayouts(),
   ]);
 
   const groupsByService = new Map<string, string[]>();
@@ -46,24 +46,41 @@ export default async function AdminServicesPage() {
         title="Card layout"
         description="How service cards are arranged on the landing page, on every screen size."
       >
-        <form action={setCardLayout} className="flex flex-wrap items-end gap-3">
-          <div className="min-w-64 flex-1">
-            <Field label="Layout" htmlFor="card-layout">
-              <select id="card-layout" name="layout" defaultValue={cardLayout} className={inputClass}>
-                <option value="detailed">
-                  Detailed — icon beside the name, with descriptions
-                </option>
-                <option value="compact">Compact — icon above the name, three across</option>
-              </select>
-            </Field>
+        <form action={setCardLayout} className="grid gap-3 sm:grid-cols-2">
+          <Field label="On phones" htmlFor="layout-mobile" hint="Below 640px wide.">
+            <select
+              id="layout-mobile"
+              name="mobile"
+              defaultValue={cardLayouts.mobile}
+              className={inputClass}
+            >
+              <option value="compact">Compact — icon above the name, three across</option>
+              <option value="detailed">Detailed — icon beside the name, one per row</option>
+            </select>
+          </Field>
+
+          <Field label="On wider screens" htmlFor="layout-desktop" hint="640px and up.">
+            <select
+              id="layout-desktop"
+              name="desktop"
+              defaultValue={cardLayouts.desktop}
+              className={inputClass}
+            >
+              <option value="detailed">Detailed — icon beside the name, with descriptions</option>
+              <option value="compact">Compact — icon above the name, dense tiles</option>
+            </select>
+          </Field>
+
+          <div className="sm:col-span-2">
+            <Button type="submit" variant="primary">
+              Save layout
+            </Button>
+            <p className="mt-2 text-xs text-slate-600">
+              Descriptions only appear in the detailed layout — there&apos;s no room for them in
+              compact tiles.
+            </p>
           </div>
-          <Button type="submit" variant="primary">
-            Save layout
-          </Button>
         </form>
-        <p className="mt-2 text-xs text-slate-600">
-          Compact drops descriptions — there&apos;s no room for them at three columns.
-        </p>
       </Panel>
 
       <Panel title="Add a category" description="Categories are the headings service cards sit under.">

@@ -4,7 +4,7 @@ import { getVisibleStatusItems } from "@/lib/statusPane";
 import {
   getKumaConfig,
   getSetting,
-  getServiceCardLayout,
+  getServiceCardLayouts,
   getStatusPaneColumns,
   SETTING_KEYS,
 } from "@/lib/settings";
@@ -14,6 +14,7 @@ import { PortalHeader } from "@/components/PortalHeader";
 import { LiveArea } from "@/components/LiveArea";
 import { type ClientCategory } from "@/components/ServiceGrid";
 import { ServiceIcon } from "@/components/ServiceIcon";
+import { cardStyle } from "@/components/cardStyles";
 
 // Group membership and admin edits must show up immediately, so this page is
 // never statically cached.
@@ -25,7 +26,7 @@ export default async function HomePage() {
   // All of these hit local SQLite and are fast. Uptime Kuma is deliberately NOT
   // awaited here — the pane and grid must paint immediately and let status fill
   // in client-side, rather than blocking first paint on a possibly-slow upstream.
-  const [categories, motd, paneItems, kuma, showPingSetting, paneColumns, cardLayout] =
+  const [categories, motd, paneItems, kuma, showPingSetting, paneColumns, cardLayouts] =
     await Promise.all([
       getVisibleServices(user),
       getMotd(),
@@ -33,11 +34,11 @@ export default async function HomePage() {
       getKumaConfig(),
       getSetting(SETTING_KEYS.statusPaneShowPing),
       getStatusPaneColumns(),
-      getServiceCardLayout(),
+      getServiceCardLayouts(),
     ]);
 
-  // Compact tiles get a larger icon, since it carries the card on its own.
-  const iconSize = cardLayout === "compact" ? "h-9 w-9" : "h-10 w-10";
+  // Icon sizing is part of the layout pair, so it can differ per breakpoint.
+  const iconSize = cardStyle(cardLayouts).icon;
 
   const clientCategories: ClientCategory[] = categories.map((category) => ({
     id: category.id,
@@ -85,7 +86,7 @@ export default async function HomePage() {
         categories={clientCategories}
         showPing={kuma.configured && showPingSetting !== "false"}
         paneColumns={paneColumns}
-        cardLayout={cardLayout}
+        cardLayouts={cardLayouts}
         motd={<Motd markdown={motd} />}
       />
     </main>
