@@ -1,12 +1,11 @@
-import ReactMarkdown from "react-markdown";
-import remarkBreaks from "remark-breaks";
+import { Markdown } from "./Markdown";
 
 /**
- * Renders the admin-authored announcement.
+ * The admin-authored announcement banner.
  *
- * react-markdown does not render raw HTML unless rehype-raw is added, which it
- * deliberately is not — so an admin account can't inject script into every
- * user's landing page. Only inline formatting, links, and lists render.
+ * Rendering lives in <Markdown>, shared with popup and page cards, so all
+ * admin-authored markdown behaves and looks identical — and raw HTML is
+ * disabled in exactly one place.
  */
 export function Motd({ markdown }: { markdown: string }) {
   if (!markdown.trim()) return null;
@@ -14,22 +13,9 @@ export function Motd({ markdown }: { markdown: string }) {
   return (
     <section
       aria-label="Announcement"
-      className="rounded-lg border border-surface-border bg-surface-raised px-4 py-3 text-sm leading-relaxed text-slate-300"
+      className="rounded-lg border border-surface-border bg-surface-raised px-4 py-3"
     >
-      <div className="space-y-2 [&_a]:text-sky-400 [&_a]:underline [&_li]:ml-4 [&_li]:list-disc [&_strong]:text-slate-100">
-        <ReactMarkdown
-          remarkPlugins={[remarkBreaks]}
-          components={{
-            a: ({ href, children }) => (
-              <a href={href} target="_blank" rel="noopener noreferrer">
-                {children}
-              </a>
-            ),
-          }}
-        >
-          {markdown}
-        </ReactMarkdown>
-      </div>
+      <Markdown>{markdown}</Markdown>
     </section>
   );
 }

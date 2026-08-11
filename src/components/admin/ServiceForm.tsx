@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button, Field, inputClass } from "./ui";
 import { IconPicker } from "./IconPicker";
-import type { ServiceVisibility } from "@/lib/db/schema";
+import type { ServiceKind, ServiceVisibility } from "@/lib/db/schema";
 
 export type GroupOption = { id: string; name: string };
 
@@ -13,7 +13,9 @@ export type ServiceFormValues = {
   name: string;
   description: string;
   icon: string;
+  kind: ServiceKind;
   url: string;
+  content: string;
   monitorKey: string;
   visibility: ServiceVisibility;
   isEnabled: boolean;
@@ -39,7 +41,9 @@ export function ServiceForm({
   submitLabel: string;
 }) {
   const [visibility, setVisibility] = useState<ServiceVisibility>(initial.visibility);
+  const [kind, setKind] = useState<ServiceKind>(initial.kind);
   const uid = initial.id ?? "new";
+  const isLink = kind === "link";
 
   return (
     <form action={action} className="grid gap-3 sm:grid-cols-2">
@@ -70,16 +74,46 @@ export function ServiceForm({
         </select>
       </Field>
 
-      <Field label="URL" htmlFor={`url-${uid}`}>
-        <input
-          id={`url-${uid}`}
-          name="url"
-          required
-          defaultValue={initial.url}
-          placeholder="https://jellyfin.example.com"
+      <Field
+        label="When clicked"
+        htmlFor={`kind-${uid}`}
+        hint={
+          kind === "popup"
+            ? "Opens your text in a dialog, without leaving the portal."
+            : kind === "page"
+              ? "Opens your text on its own page — linkable, and the back button works."
+              : "Opens the URL below."
+        }
+      >
+        <select
+          id={`kind-${uid}`}
+          name="kind"
+          value={kind}
+          onChange={(e) => setKind(e.target.value as ServiceKind)}
           className={inputClass}
-        />
+        >
+          <option value="link">Open a link</option>
+          <option value="popup">Show help in a popup</option>
+          <option value="page">Show help on a page</option>
+        </select>
       </Field>
+
+      {isLink ? (
+        <Field label="URL" htmlFor={`url-${uid}`}>
+          <input
+            id={`url-${uid}`}
+            name="url"
+            required
+            defaultValue={initial.url}
+            placeholder="https://jellyfin.example.com"
+            className={inputClass}
+          />
+        </Field>
+      ) : (
+        // Keeps the previous URL through a round-trip, so switching to popup and
+        // back doesn't silently lose it.
+        <input type="hidden" name="url" value={initial.url} />
+      )}
 
       <Field
         label="Icon"
@@ -136,6 +170,25 @@ export function ServiceForm({
           Enabled
         </label>
       </div>
+
+      {!isLink ? (
+        <div className="sm:col-span-2">
+          <Field
+            label="Content"
+            htmlFor={`content-${uid}`}
+            hint="Markdown: headings, bold, italic, links, lists, quotes and code. Raw HTML is not rendered."
+          >
+            <textarea
+              id={`content-${uid}`}
+              name="content"
+              rows={8}
+              defaultValue={initial.content}
+              placeholder={"## Getting started\n\n1. Request access\n2. Sign in with SSO\n\nSee [the docs](https://example.com)."}
+              className={`${inputClass} font-mono`}
+            />
+          </Field>
+        </div>
+      ) : null}
 
       {visibility === "groups" ? (
         <fieldset className="sm:col-span-2">

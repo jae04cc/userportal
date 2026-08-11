@@ -31,6 +31,8 @@ export const SETTING_KEYS = {
   statusPaneShowPing: "status_pane_show_ping",
   /** How many tiles sit side by side: "1" | "2" | "3". */
   statusPaneColumns: "status_pane_columns",
+  /** Service card layout: "detailed" | "compact". */
+  serviceCardLayout: "service_card_layout",
 
   oidcIssuer: "oidc_issuer",
   oidcClientId: "oidc_client_id",
@@ -207,6 +209,19 @@ export async function getPortalIdentity(): Promise<PortalIdentity> {
   const accent = /^#[0-9a-f]{6}$/i.test(rawAccent) ? rawAccent : DEFAULT_ACCENT;
 
   return { name, accent };
+}
+
+export type CardLayout = "detailed" | "compact";
+
+/**
+ * "detailed" — icon left, name and description stacked beside it. One card per
+ *              row on a phone.
+ * "compact"  — icon above a centred name, three across on a phone. Drops the
+ *              description; there's no room for it at that size.
+ */
+export async function getServiceCardLayout(): Promise<CardLayout> {
+  const raw = await getSetting(SETTING_KEYS.serviceCardLayout);
+  return raw === "compact" ? "compact" : "detailed";
 }
 
 export type PaneColumns = 1 | 2 | 3;

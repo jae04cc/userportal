@@ -10,6 +10,7 @@ import { setMotd } from "@/lib/services";
 import { SETTING_KEYS, setSetting } from "@/lib/settings";
 import { generateId } from "@/lib/utils";
 import { safeUrlOrNull, isSafeIcon } from "@/lib/urls";
+import type { ServiceKind } from "@/lib/db/schema";
 
 /**
  * Every action here starts with requireAdminApi(). Server actions are publicly
@@ -75,6 +76,21 @@ export async function updateIdentity(form: FormData) {
     action: "update",
     entityType: "motd",
     summary: `Set portal name to "${name}" with accent ${accent}`,
+  });
+  refresh();
+}
+
+/** How service cards are laid out on the landing page. */
+export async function setCardLayout(form: FormData) {
+  const actor = await requireAdminApi();
+  const layout = str(form, "layout") === "compact" ? "compact" : "detailed";
+
+  await setSetting(SETTING_KEYS.serviceCardLayout, layout);
+  await recordAudit({
+    actor,
+    action: "update",
+    entityType: "service",
+    summary: `Set service card layout to ${layout}`,
   });
   refresh();
 }
@@ -189,15 +205,37 @@ async function applyServiceGroups(serviceId: string, groupIds: string[]) {
   await db.insert(serviceGroups).values(groupIds.map((groupId) => ({ serviceId, groupId })));
 }
 
+const VALID_KINDS: ServiceKind[] = ["link", "popup", "page"];
+
+/**
+ * Resolves the URL/content pair for a service.
+ *
+ * A "link" card must have a safe URL. popup and page cards have no URL at all —
+ * they carry markdown instead — so requiring one would block saving them.
+ * Returns null when the submission is invalid and the save should be dropped.
+ */
+function resolveTarget(form: FormData): { kind: ServiceKind; url: string; content: string | null } | null {
+  const rawKind = str(form, "kind") as ServiceKind;
+  const kind = VALID_KINDS.includes(rawKind) ? rawKind : "link";
+
+  if (kind === "link") {
+    // Reject anything that isn't http(s) or a relative path — a javascript:
+    // URL here would become stored XSS on every user's landing page.
+    const url = safeUrlOrNull(str(form, "url"));
+    if (!url) return null;
+    return { kind, url, content: null };
+  }
+
+  return { kind, url: "", content: String(form.get("content") ?? "") };
+}
+
 export async function createService(form: FormData) {
   const actor = await requireAdminApi();
   const categoryId = str(form, "categoryId");
   const name = str(form, "name");
-  // Reject anything that isn't http(s) or a relative path — a javascript: URL
-  // here would become stored XSS on every user's landing page.
-  const url = safeUrlOrNull(str(form, "url"));
   const icon = optionalStr(form, "icon");
-  if (!categoryId || !name || !url) return;
+  const target = resolveTarget(form);
+  if (!categoryId || !name || !target) return;
   if (icon && !isSafeIcon(icon)) return;
 
   const rawVisibility = str(form, "visibility") as ServiceVisibility;
@@ -217,7 +255,9 @@ export async function createService(form: FormData) {
     name,
     description: optionalStr(form, "description"),
     icon,
-    url,
+    kind: target.kind,
+    url: target.url,
+    content: target.content,
     monitorKey: optionalStr(form, "monitorKey"),
     visibility,
     sortOrder: max + 1,
@@ -242,10 +282,10 @@ export async function updateService(form: FormData) {
   const actor = await requireAdminApi();
   const id = str(form, "id");
   const name = str(form, "name");
-  const url = safeUrlOrNull(str(form, "url"));
   const icon = optionalStr(form, "icon");
   const categoryId = str(form, "categoryId");
-  if (!id || !name || !url || !categoryId) return;
+  const target = resolveTarget(form);
+  if (!id || !name || !categoryId || !target) return;
   if (icon && !isSafeIcon(icon)) return;
 
   const rawVisibility = str(form, "visibility") as ServiceVisibility;
@@ -258,7 +298,9 @@ export async function updateService(form: FormData) {
       name,
       description: optionalStr(form, "description"),
       icon,
-      url,
+      kind: target.kind,
+      url: target.url,
+      content: target.content,
       monitorKey: optionalStr(form, "monitorKey"),
       visibility,
       isEnabled: form.get("isEnabled") !== null,

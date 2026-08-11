@@ -3,8 +3,10 @@ import { db } from "@/lib/db";
 import { categories, groups, services, serviceGroups } from "@/lib/db/schema";
 import { Button, Field, Panel, inputClass } from "@/components/admin/ui";
 import { ServiceForm } from "@/components/admin/ServiceForm";
+import { getServiceCardLayout } from "@/lib/settings";
 import {
   createCategory,
+  setCardLayout,
   createService,
   deleteCategory,
   deleteService,
@@ -23,11 +25,12 @@ const VISIBILITY_LABEL = {
 } as const;
 
 export default async function AdminServicesPage() {
-  const [allCategories, allServices, allGroups, allServiceGroups] = await Promise.all([
+  const [allCategories, allServices, allGroups, allServiceGroups, cardLayout] = await Promise.all([
     db.select().from(categories).orderBy(asc(categories.sortOrder), asc(categories.name)),
     db.select().from(services).orderBy(asc(services.sortOrder), asc(services.name)),
     db.select().from(groups).orderBy(asc(groups.sortOrder), asc(groups.name)),
     db.select().from(serviceGroups),
+    getServiceCardLayout(),
   ]);
 
   const groupsByService = new Map<string, string[]>();
@@ -39,6 +42,30 @@ export default async function AdminServicesPage() {
 
   return (
     <>
+      <Panel
+        title="Card layout"
+        description="How service cards are arranged on the landing page, on every screen size."
+      >
+        <form action={setCardLayout} className="flex flex-wrap items-end gap-3">
+          <div className="min-w-64 flex-1">
+            <Field label="Layout" htmlFor="card-layout">
+              <select id="card-layout" name="layout" defaultValue={cardLayout} className={inputClass}>
+                <option value="detailed">
+                  Detailed — icon beside the name, with descriptions
+                </option>
+                <option value="compact">Compact — icon above the name, three across</option>
+              </select>
+            </Field>
+          </div>
+          <Button type="submit" variant="primary">
+            Save layout
+          </Button>
+        </form>
+        <p className="mt-2 text-xs text-slate-600">
+          Compact drops descriptions — there&apos;s no room for them at three columns.
+        </p>
+      </Panel>
+
       <Panel title="Add a category" description="Categories are the headings service cards sit under.">
         <form action={createCategory} className="flex flex-wrap items-end gap-3">
           <div className="min-w-48 flex-1">
@@ -180,7 +207,9 @@ export default async function AdminServicesPage() {
                           name: service.name,
                           description: service.description ?? "",
                           icon: service.icon ?? "",
+                          kind: service.kind,
                           url: service.url,
+                          content: service.content ?? "",
                           monitorKey: service.monitorKey ?? "",
                           visibility: service.visibility,
                           isEnabled: service.isEnabled,
@@ -208,7 +237,9 @@ export default async function AdminServicesPage() {
                     name: "",
                     description: "",
                     icon: "",
+                    kind: "link",
                     url: "",
+                    content: "",
                     monitorKey: "",
                     visibility: "all",
                     isEnabled: true,

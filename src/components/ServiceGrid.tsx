@@ -1,21 +1,29 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import Link from "next/link";
 import { StatusDot } from "./StatusDot";
+import { ServiceModal } from "./ServiceModal";
 import { UNKNOWN, type MonitorHealth } from "@/lib/status/types";
+import type { ServiceKind } from "@/lib/db/schema";
+import { cn } from "@/lib/utils";
 
 /**
- * Client-side shape only. Two deliberate choices:
+ * Client-side shape only. Three deliberate choices:
  *  - no monitorKey, so the browser never learns the monitoring topology
- *  - `icon` is an already-rendered element built on the server, which keeps
- *    lucide's icon barrel out of the client bundle entirely
+ *  - `icon` is an already-rendered element built on the server, keeping
+ *    lucide's icon barrel out of the client bundle
+ *  - `content` is likewise already-rendered markdown, keeping react-markdown
+ *    on the server
  */
 export type ClientService = {
   id: string;
   name: string;
   description: string | null;
   icon: ReactNode;
+  kind: ServiceKind;
   url: string;
+  content: ReactNode;
   hasMonitor: boolean;
 };
 
@@ -25,13 +33,24 @@ export type ClientCategory = {
   services: ClientService[];
 };
 
+export type CardLayout = "detailed" | "compact";
+
+const GRID_CLASS: Record<CardLayout, string> = {
+  // Roomy rows: one per line on a phone, filling out as space allows.
+  detailed: "grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(17rem,1fr))]",
+  // Dense tiles: three across even on a phone.
+  compact: "grid-cols-3 sm:grid-cols-[repeat(auto-fill,minmax(9rem,1fr))]",
+};
+
 export function ServiceGrid({
   categories,
   statuses,
+  layout,
 }: {
   categories: ClientCategory[];
   /** Supplied by LiveArea, which owns the single poll for the page. */
   statuses: Record<string, MonitorHealth>;
+  layout: CardLayout;
 }) {
   if (categories.length === 0) {
     return (
@@ -51,11 +70,12 @@ export function ServiceGrid({
           >
             {category.name}
           </h2>
-          <div className="card-grid">
+          <div className={cn("grid gap-2 sm:gap-3", GRID_CLASS[layout])}>
             {category.services.map((service) => (
               <ServiceCard
                 key={service.id}
                 service={service}
+                layout={layout}
                 health={service.hasMonitor ? (statuses[service.id] ?? UNKNOWN) : null}
               />
             ))}
@@ -69,10 +89,77 @@ export function ServiceGrid({
 function ServiceCard({
   service,
   health,
+  layout,
 }: {
   service: ClientService;
   health: MonitorHealth | null;
+  layout: CardLayout;
 }) {
+  const [open, setOpen] = useState(false);
+  const compact = layout === "compact";
+
+  const shell = cn(
+    "group relative rounded-lg border border-surface-border bg-surface-raised text-left transition-colors hover:border-slate-600 hover:bg-surface-hover",
+    compact
+      ? "flex min-h-[6rem] flex-col items-center justify-center gap-2 p-3 text-center"
+      : "flex min-h-[5rem] items-center gap-3.5 p-3.5 sm:p-4"
+  );
+
+  const label = health ? `${service.name}, status: ${health.status}` : service.name;
+
+  const inner = (
+    <>
+      {health ? <StatusDot health={health} className="absolute right-2.5 top-2.5" /> : null}
+
+      {service.icon}
+
+      {compact ? (
+        <span className="line-clamp-2 text-xs font-medium leading-tight text-slate-100">
+          {service.name}
+        </span>
+      ) : (
+        // min-w-0 lets the text truncate instead of stretching the card, and
+        // keeps the name and description sharing one left edge.
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-base font-medium text-slate-100">
+            {service.name}
+          </span>
+          {service.description ? (
+            <span className="mt-0.5 block truncate text-sm text-slate-400">
+              {service.description}
+            </span>
+          ) : null}
+        </span>
+      )}
+    </>
+  );
+
+  if (service.kind === "popup") {
+    return (
+      <>
+        <button type="button" onClick={() => setOpen(true)} aria-label={label} className={shell}>
+          {inner}
+        </button>
+        <ServiceModal
+          open={open}
+          onClose={() => setOpen(false)}
+          title={service.name}
+          description={service.description}
+        >
+          {service.content}
+        </ServiceModal>
+      </>
+    );
+  }
+
+  if (service.kind === "page") {
+    return (
+      <Link href={`/info/${service.id}`} aria-label={label} className={shell}>
+        {inner}
+      </Link>
+    );
+  }
+
   const isExternal = /^https?:\/\//i.test(service.url);
 
   return (
@@ -80,25 +167,11 @@ function ServiceCard({
       href={service.url}
       target={isExternal ? "_blank" : undefined}
       rel={isExternal ? "noopener noreferrer" : undefined}
-      // The status stays in the accessible name, so it isn't lost for screen
-      // readers now that the visible word is gone.
-      aria-label={health ? `${service.name}, status: ${health.status}` : service.name}
-      className="group relative flex min-h-[4.5rem] flex-col justify-center gap-1 rounded-lg border border-surface-border bg-surface-raised p-3.5 transition-colors hover:border-slate-600 hover:bg-surface-hover sm:p-4"
+      // Status stays in the accessible name, since the visible word is gone.
+      aria-label={label}
+      className={shell}
     >
-      {health ? <StatusDot health={health} className="absolute right-2.5 top-2.5" /> : null}
-
-      <div className="flex items-center gap-3">
-        {service.icon}
-        <span className="truncate text-base font-medium text-slate-100">{service.name}</span>
-      </div>
-
-      {service.description ? (
-        // Hidden on phones — at two columns there isn't room for it without the
-        // cards becoming tall and unscannable.
-        <p className="hidden line-clamp-2 pl-[2.75rem] text-sm text-slate-400 sm:block">
-          {service.description}
-        </p>
-      ) : null}
+      {inner}
     </a>
   );
 }

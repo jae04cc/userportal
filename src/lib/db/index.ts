@@ -106,7 +106,9 @@ export async function runMigrations() {
       name TEXT NOT NULL,
       description TEXT,
       icon TEXT,
+      kind TEXT NOT NULL DEFAULT 'link',
       url TEXT NOT NULL,
+      content TEXT,
       monitor_key TEXT,
       visibility TEXT NOT NULL DEFAULT 'all',
       sort_order INTEGER NOT NULL DEFAULT 0,
@@ -173,6 +175,16 @@ export async function runMigrations() {
     await client.execute(
       "ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0"
     );
+  }
+
+  const serviceCols = await client.execute("PRAGMA table_info(services)");
+  const hasServiceCol = (name: string) => serviceCols.rows.some((r) => r[1] === name);
+
+  if (!hasServiceCol("kind")) {
+    await client.execute("ALTER TABLE services ADD COLUMN kind TEXT NOT NULL DEFAULT 'link'");
+  }
+  if (!hasServiceCol("content")) {
+    await client.execute("ALTER TABLE services ADD COLUMN content TEXT");
   }
 
   const memberCols = await client.execute("PRAGMA table_info(user_groups)");

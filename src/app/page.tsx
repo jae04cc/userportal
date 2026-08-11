@@ -1,8 +1,15 @@
 import { requireUser } from "@/lib/authz";
 import { getVisibleServices, getMotd } from "@/lib/services";
 import { getVisibleStatusItems } from "@/lib/statusPane";
-import { getKumaConfig, getSetting, getStatusPaneColumns, SETTING_KEYS } from "@/lib/settings";
+import {
+  getKumaConfig,
+  getSetting,
+  getServiceCardLayout,
+  getStatusPaneColumns,
+  SETTING_KEYS,
+} from "@/lib/settings";
 import { Motd } from "@/components/Motd";
+import { Markdown } from "@/components/Markdown";
 import { PortalHeader } from "@/components/PortalHeader";
 import { LiveArea } from "@/components/LiveArea";
 import { type ClientCategory } from "@/components/ServiceGrid";
@@ -18,14 +25,19 @@ export default async function HomePage() {
   // All of these hit local SQLite and are fast. Uptime Kuma is deliberately NOT
   // awaited here — the pane and grid must paint immediately and let status fill
   // in client-side, rather than blocking first paint on a possibly-slow upstream.
-  const [categories, motd, paneItems, kuma, showPingSetting, paneColumns] = await Promise.all([
-    getVisibleServices(user),
-    getMotd(),
-    getVisibleStatusItems(user),
-    getKumaConfig(),
-    getSetting(SETTING_KEYS.statusPaneShowPing),
-    getStatusPaneColumns(),
-  ]);
+  const [categories, motd, paneItems, kuma, showPingSetting, paneColumns, cardLayout] =
+    await Promise.all([
+      getVisibleServices(user),
+      getMotd(),
+      getVisibleStatusItems(user),
+      getKumaConfig(),
+      getSetting(SETTING_KEYS.statusPaneShowPing),
+      getStatusPaneColumns(),
+      getServiceCardLayout(),
+    ]);
+
+  // Compact tiles get a larger icon, since it carries the card on its own.
+  const iconSize = cardLayout === "compact" ? "h-9 w-9" : "h-10 w-10";
 
   const clientCategories: ClientCategory[] = categories.map((category) => ({
     id: category.id,
@@ -36,8 +48,15 @@ export default async function HomePage() {
       description: service.description,
       // Rendered here on the server so lucide's icon barrel never reaches the
       // client bundle — the browser receives only the resulting <svg>.
-      icon: <ServiceIcon icon={service.icon} className="h-7 w-7" />,
+      icon: <ServiceIcon icon={service.icon} className={iconSize} />,
+      kind: service.kind,
       url: service.url,
+      // Likewise for markdown: popup bodies are rendered server-side and handed
+      // to the modal as a finished element, keeping react-markdown off the client.
+      content:
+        service.kind === "popup" && service.content?.trim() ? (
+          <Markdown>{service.content}</Markdown>
+        ) : null,
       // monitorKey itself is intentionally not serialised to the browser.
       hasMonitor: Boolean(service.monitorKey),
     })),
@@ -66,6 +85,7 @@ export default async function HomePage() {
         categories={clientCategories}
         showPing={kuma.configured && showPingSetting !== "false"}
         paneColumns={paneColumns}
+        cardLayout={cardLayout}
         motd={<Motd markdown={motd} />}
       />
     </main>

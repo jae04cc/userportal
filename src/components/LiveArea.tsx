@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { StatusPane, type ClientStatusItem } from "./StatusPane";
-import { ServiceGrid, type ClientCategory } from "./ServiceGrid";
+import { ServiceGrid, type ClientCategory, type CardLayout } from "./ServiceGrid";
 import { useServiceStatus } from "./useServiceStatus";
 
 /**
@@ -21,12 +21,14 @@ export function LiveArea({
   categories,
   showPing,
   paneColumns,
+  cardLayout,
   motd,
 }: {
   paneItems: ClientStatusItem[];
   categories: ClientCategory[];
   showPing: boolean;
   paneColumns: number;
+  cardLayout: CardLayout;
   motd: ReactNode;
 }) {
   const { statuses, pane } = useServiceStatus();
@@ -41,7 +43,7 @@ export function LiveArea({
       />
       {motd}
       <div className="mt-8">
-        <ServiceGrid categories={categories} statuses={statuses} />
+        <ServiceGrid categories={categories} statuses={statuses} layout={cardLayout} />
       </div>
     </>
   );

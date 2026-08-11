@@ -2,7 +2,7 @@ import "server-only";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { categories, services, serviceGroups, appSettings } from "@/lib/db/schema";
-import type { ServiceVisibility } from "@/lib/db/schema";
+import type { ServiceKind, ServiceVisibility } from "@/lib/db/schema";
 import { canSeeService } from "@/lib/visibility";
 import type { CurrentUser } from "@/lib/authz";
 
@@ -11,7 +11,10 @@ export type VisibleService = {
   name: string;
   description: string | null;
   icon: string | null;
+  kind: ServiceKind;
   url: string;
+  /** Markdown body for popup/page cards. */
+  content: string | null;
   /** Server-only. Never serialised to the client — see /api/status. */
   monitorKey: string | null;
   visibility: ServiceVisibility;
@@ -67,7 +70,9 @@ export async function getVisibleServices(user: CurrentUser): Promise<VisibleCate
           name: s.name,
           description: s.description,
           icon: s.icon,
+          kind: s.kind,
           url: s.url,
+          content: s.content,
           monitorKey: s.monitorKey,
           visibility: s.visibility,
           isEnabled: s.isEnabled,

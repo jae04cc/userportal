@@ -81,6 +81,19 @@ export const categories = sqliteTable("categories", {
  */
 export type ServiceVisibility = "all" | "groups" | "admin";
 
+/**
+ * What happens when a card is activated.
+ *
+ * "link"  — navigates to `url`, the normal case.
+ * "popup" — opens `content` as markdown in a modal, without leaving the portal.
+ * "page"  — opens `content` as markdown on its own page at /info/<id>.
+ *
+ * popup and page exist for help text and instructions. They're the same content
+ * presented two ways: a modal keeps the reader in place, a page is linkable,
+ * scrolls naturally and works with the back button.
+ */
+export type ServiceKind = "link" | "popup" | "page";
+
 export const services = sqliteTable(
   "services",
   {
@@ -92,7 +105,11 @@ export const services = sqliteTable(
     description: text("description"),
     // Either a lucide-react icon name ("clapperboard") or an http(s) image URL.
     icon: text("icon"),
+    kind: text("kind").$type<ServiceKind>().notNull().default("link"),
+    /** Only meaningful when kind === "link". Empty string for popup/page. */
     url: text("url").notNull(),
+    /** Markdown body for popup/page cards. */
+    content: text("content"),
     // Binds the card to an Uptime Kuma monitor. Preferably the monitor's
     // numeric id (stable across renames); a monitor name also resolves, for
     // bindings typed by hand. Null = no indicator rendered.
