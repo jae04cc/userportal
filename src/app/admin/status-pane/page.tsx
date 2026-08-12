@@ -189,7 +189,10 @@ export default async function AdminStatusPanePage() {
                 <details className="mt-2">
                   <summary className="cursor-pointer text-sm text-sky-400">Edit</summary>
                   <div className="mt-3">
+                    {/* Remount on save so the fields re-read from the server —
+                        see the same comment on the services page. */}
                     <StatusItemForm
+                      key={String(item.updatedAt)}
                       action={updateStatusItem}
                       groups={groupOptions}
                       monitors={monitorOptions}
@@ -213,7 +216,9 @@ export default async function AdminStatusPanePage() {
         <details className="mt-4">
           <summary className="cursor-pointer text-sm text-sky-400">Add a tile manually</summary>
           <div className="mt-3">
+            {/* Clears itself once the tile has been added. */}
             <StatusItemForm
+              key={items.map((i) => i.id).join("|")}
               action={createStatusItem}
               groups={groupOptions}
               monitors={monitorOptions}

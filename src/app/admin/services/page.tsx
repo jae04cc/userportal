@@ -213,7 +213,13 @@ export default async function AdminServicesPage() {
                   <details className="mt-2">
                     <summary className="cursor-pointer text-sm text-sky-400">Edit</summary>
                     <div className="mt-3">
+                      {/* Keyed on the row's last-updated stamp so a save
+                          remounts the form and its fields re-read from the
+                          server. Without it these inputs are uncontrolled and
+                          keep whatever was typed, even if the server stored
+                          something different. */}
                       <ServiceForm
+                        key={String(service.updatedAt)}
                         action={updateService}
                         categories={allCategories}
                         groups={groupOptions}
@@ -244,7 +250,12 @@ export default async function AdminServicesPage() {
                 Add a service to {category.name}
               </summary>
               <div className="mt-3">
+                {/* Keyed on the category's current service ids, so adding one
+                    remounts this form and clears it. Otherwise the fields you
+                    just submitted are still sitting there afterwards, which
+                    reads as "the save didn't take". */}
                 <ServiceForm
+                  key={own.map((s) => s.id).join("|")}
                   action={createService}
                   categories={allCategories}
                   groups={groupOptions}

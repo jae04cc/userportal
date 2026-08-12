@@ -29,6 +29,22 @@ const nextConfig = {
   experimental: {
     // libsql ships native/WASM bindings that must not be bundled by webpack
     serverComponentsExternalPackages: ["@libsql/client", "libsql"],
+
+    /**
+     * Don't reuse cached page data when navigating.
+     *
+     * Next keeps a client-side Router Cache and, by default, serves an already
+     * visited dynamic route from it for 30 seconds. In an admin area that reads
+     * as a bug: rename a category, move to another tab and back, and the old
+     * name is still there until you force a reload. Marking pages
+     * `force-dynamic` does not affect this — that governs the server, this cache
+     * lives in the browser.
+     *
+     * Zero means every navigation refetches. The cost is a request per
+     * navigation against local SQLite, which is nothing next to showing people
+     * stale configuration.
+     */
+    staleTimes: { dynamic: 0, static: 180 },
   },
   async headers() {
     return [

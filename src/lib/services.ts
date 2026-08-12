@@ -3,8 +3,7 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { categories, services, serviceGroups, appSettings } from "@/lib/db/schema";
 import type { ServiceKind, ServiceVisibility } from "@/lib/db/schema";
-import { canSeeService } from "@/lib/visibility";
-import type { CurrentUser } from "@/lib/authz";
+import { canSeeService, type VisibilityViewer } from "@/lib/visibility";
 
 export type VisibleService = {
   id: string;
@@ -33,8 +32,13 @@ export type VisibleCategory = {
  * Both the landing page and /api/status call this. That is load-bearing: if the
  * status endpoint built its own list, it would leak the existence of admin-only
  * services to normal users through their status payload.
+ *
+ * Takes a bare viewer rather than a CurrentUser so the admin preview can pass a
+ * hypothetical one. A real CurrentUser satisfies this shape, so callers are
+ * unchanged — and the preview cannot accidentally inherit the admin's own
+ * privileges, because it can only supply these two fields.
  */
-export async function getVisibleServices(user: CurrentUser): Promise<VisibleCategory[]> {
+export async function getVisibleServices(viewer: VisibilityViewer): Promise<VisibleCategory[]> {
   const [allCategories, allServices, allServiceGroups] = await Promise.all([
     db.select().from(categories).orderBy(asc(categories.sortOrder), asc(categories.name)),
     db.select().from(services).orderBy(asc(services.sortOrder), asc(services.name)),
@@ -47,8 +51,6 @@ export async function getVisibleServices(user: CurrentUser): Promise<VisibleCate
     list.push(sg.groupId);
     groupsByService.set(sg.serviceId, list);
   }
-
-  const viewer = { isAdmin: user.isAdmin, groupIds: user.groupIds };
 
   const result: VisibleCategory[] = [];
   for (const category of allCategories) {

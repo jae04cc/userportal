@@ -3,8 +3,7 @@ import { asc } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { statusItems, statusItemGroups } from "@/lib/db/schema";
 import type { ServiceVisibility } from "@/lib/db/schema";
-import { canSeeService } from "@/lib/visibility";
-import type { CurrentUser } from "@/lib/authz";
+import { canSeeService, type VisibilityViewer } from "@/lib/visibility";
 
 export type VisibleStatusItem = {
   id: string;
@@ -24,7 +23,9 @@ export type VisibleStatusItem = {
  * Reuses canSeeService — the visibility rules are identical, so they live in one
  * tested place rather than being reimplemented here.
  */
-export async function getVisibleStatusItems(user: CurrentUser): Promise<VisibleStatusItem[]> {
+export async function getVisibleStatusItems(
+  viewer: VisibilityViewer
+): Promise<VisibleStatusItem[]> {
   const [items, itemGroups] = await Promise.all([
     db.select().from(statusItems).orderBy(asc(statusItems.sortOrder), asc(statusItems.label)),
     db.select().from(statusItemGroups),
@@ -34,8 +35,6 @@ export async function getVisibleStatusItems(user: CurrentUser): Promise<VisibleS
   for (const g of itemGroups) {
     groupsByItem.set(g.statusItemId, [...(groupsByItem.get(g.statusItemId) ?? []), g.groupId]);
   }
-
-  const viewer = { isAdmin: user.isAdmin, groupIds: user.groupIds };
 
   return items
     .filter((item) =>
