@@ -31,6 +31,8 @@ export type ClientService = {
 export type ClientCategory = {
   id: string;
   name: string;
+  /** Whether this section starts folded shut. A default, not a lock. */
+  startCollapsed: boolean;
   services: ClientService[];
 };
 
@@ -57,14 +59,42 @@ export function ServiceGrid({
   return (
     <div className="space-y-8">
       {categories.map((category) => (
-        <section key={category.id} aria-labelledby={`cat-${category.id}`}>
-          <h2
-            id={`cat-${category.id}`}
-            className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500"
+        /**
+         * A native <details> rather than React state: it collapses correctly
+         * with JavaScript disabled, the heading is keyboard-operable for free,
+         * and screen readers announce the expanded/collapsed state without any
+         * aria wiring. `open` is the admin's configured default — the browser
+         * takes over from the first click.
+         */
+        <details key={category.id} open={!category.startCollapsed} className="group/section">
+          <summary
+            className={cn(
+              "mb-3 flex cursor-pointer list-none items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500",
+              "rounded transition-colors hover:text-slate-300",
+              // Safari draws its own triangle without this.
+              "[&::-webkit-details-marker]:hidden"
+            )}
           >
+            {/* Rotates to point down when the section is open. */}
+            <svg
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              className="h-3.5 w-3.5 shrink-0 transition-transform group-open/section:rotate-90"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="m9 18 6-6-6-6" />
+            </svg>
             {category.name}
-          </h2>
-          <div className={cn("grid gap-2 sm:gap-3", style.grid)}>
+            <span className="font-normal normal-case tracking-normal text-slate-600">
+              ({category.services.length})
+            </span>
+          </summary>
+
+          <div className={cn("grid gap-2 pb-2 sm:gap-3", style.grid)}>
             {category.services.map((service) => (
               <ServiceCard
                 key={service.id}
@@ -74,7 +104,7 @@ export function ServiceGrid({
               />
             ))}
           </div>
-        </section>
+        </details>
       ))}
     </div>
   );

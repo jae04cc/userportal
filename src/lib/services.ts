@@ -23,6 +23,7 @@ export type VisibleService = {
 export type VisibleCategory = {
   id: string;
   name: string;
+  startCollapsed: boolean;
   services: VisibleService[];
 };
 
@@ -83,7 +84,12 @@ export async function getVisibleServices(viewer: VisibilityViewer): Promise<Visi
 
     // An empty category is noise on the landing page — drop it.
     if (visible.length > 0) {
-      result.push({ id: category.id, name: category.name, services: visible });
+      result.push({
+        id: category.id,
+        name: category.name,
+        startCollapsed: category.startCollapsed,
+        services: visible,
+      });
     }
   }
 

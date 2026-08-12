@@ -187,6 +187,15 @@ export async function runMigrations() {
     await client.execute("ALTER TABLE services ADD COLUMN content TEXT");
   }
 
+  const categoryCols = await client.execute("PRAGMA table_info(categories)");
+  if (!categoryCols.rows.some((r) => r[1] === "start_collapsed")) {
+    // Existing sections keep their current behaviour — open — so an upgrade
+    // never hides someone's services behind a fold they didn't ask for.
+    await client.execute(
+      "ALTER TABLE categories ADD COLUMN start_collapsed INTEGER NOT NULL DEFAULT 0"
+    );
+  }
+
   const memberCols = await client.execute("PRAGMA table_info(user_groups)");
   if (!memberCols.rows.some((r) => r[1] === "source")) {
     // Existing rows predate the portal/IdP distinction. They were written by

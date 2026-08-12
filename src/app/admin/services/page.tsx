@@ -122,8 +122,25 @@ export default async function AdminServicesPage() {
                     />
                   </Field>
                 </div>
+                <div className="min-w-48">
+                  <Field
+                    label="Starts"
+                    htmlFor={`collapsed-${category.id}`}
+                    hint="Users can still open or close it."
+                  >
+                    <select
+                      id={`collapsed-${category.id}`}
+                      name="startCollapsed"
+                      defaultValue={category.startCollapsed ? "1" : "0"}
+                      className={inputClass}
+                    >
+                      <option value="0">Expanded</option>
+                      <option value="1">Collapsed</option>
+                    </select>
+                  </Field>
+                </div>
                 <Button type="submit" variant="primary">
-                  Rename
+                  Save
                 </Button>
               </form>
 

@@ -70,6 +70,13 @@ export const categories = sqliteTable("categories", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   sortOrder: integer("sort_order").notNull().default(0),
+  /**
+   * Whether this section starts folded shut on the landing page.
+   *
+   * A default, not a lock: anyone can open or close a section themselves. It
+   * decides what they see before they touch anything.
+   */
+  startCollapsed: integer("start_collapsed", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 

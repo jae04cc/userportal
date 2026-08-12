@@ -150,6 +150,8 @@ export async function importKumaMonitors(
         id: generateId(),
         name: monitor.groupName,
         sortOrder: maxCategory,
+        // Imported sections start open, same as any newly created one.
+        startCollapsed: false,
         createdAt: now,
       };
       await db.insert(categories).values(newCategory);

@@ -171,19 +171,22 @@ export async function createCategory(form: FormData) {
   refresh();
 }
 
+/** Renames a category and sets whether its section starts folded shut. */
 export async function renameCategory(form: FormData) {
   const actor = await requireAdminApi();
   const id = str(form, "id");
   const name = str(form, "name");
   if (!id || !name) return;
 
-  await db.update(categories).set({ name }).where(eq(categories.id, id));
+  const startCollapsed = str(form, "startCollapsed") === "1";
+
+  await db.update(categories).set({ name, startCollapsed }).where(eq(categories.id, id));
   await recordAudit({
     actor,
     action: "update",
     entityType: "category",
     entityId: id,
-    summary: `Renamed category to "${name}"`,
+    summary: `Updated category "${name}" (starts ${startCollapsed ? "collapsed" : "expanded"})`,
   });
   refresh();
 }

@@ -46,6 +46,7 @@ export async function PortalBody({ viewer }: { viewer: VisibilityViewer }) {
   const clientCategories: ClientCategory[] = categories.map((category) => ({
     id: category.id,
     name: category.name,
+    startCollapsed: category.startCollapsed,
     services: category.services.map((service) => ({
       id: service.id,
       name: service.name,

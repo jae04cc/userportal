@@ -27,12 +27,26 @@ export function ServiceModal({
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
 
-    if (open && !dialog.open) dialog.showModal();
+    if (open && !dialog.open) {
+      dialog.showModal();
+      /**
+       * Move focus off the close button.
+       *
+       * showModal() focuses the first focusable descendant, which is the ✕ — so
+       * the dialog opens with it ringed, as though it were the thing you came to
+       * press. Focusing the content wrapper instead keeps focus inside the
+       * dialog (Escape and the tab trap still work) without lighting anything
+       * up: it's tabIndex -1, and :focus-visible doesn't fire for programmatic
+       * focus on a non-interactive element.
+       */
+      contentRef.current?.focus();
+    }
     if (!open && dialog.open) dialog.close();
   }, [open]);
 
@@ -96,7 +110,7 @@ export function ServiceModal({
     >
       {/* overscroll-contain stops a scroll that reaches the end of the body
           from chaining out to the page behind it. */}
-      <div className="flex max-h-[80vh] flex-col overscroll-contain">
+      <div ref={contentRef} tabIndex={-1} className="flex max-h-[80vh] flex-col overscroll-contain">
         <div className="flex items-start gap-3 border-b border-surface-border px-5 py-4">
           <div className="min-w-0 flex-1">
             <h2 id="service-modal-title" className="text-base font-medium text-slate-100">
@@ -108,7 +122,9 @@ export function ServiceModal({
             type="button"
             onClick={() => ref.current?.close()}
             aria-label="Close"
-            className="shrink-0 rounded-md px-2 py-1 text-slate-400 transition-colors hover:bg-surface-hover hover:text-slate-200"
+            // A thin outline so it reads as a button at rest, rather than only
+            // showing an edge once it's hovered or focused.
+            className="shrink-0 rounded-md border border-surface-border px-2 py-1 text-slate-400 transition-colors hover:bg-surface-hover hover:text-slate-200"
           >
             ✕
           </button>
