@@ -8,6 +8,7 @@ import { requireAdminApi } from "@/lib/authz";
 import { recordAudit } from "@/lib/audit";
 import { generateId } from "@/lib/utils";
 import { SETTING_KEYS, setSetting } from "@/lib/settings";
+import { parseCollapseAfter } from "@/lib/paneLayout";
 import { discoverMonitors } from "@/lib/status";
 
 const VALID_VISIBILITY: ServiceVisibility[] = ["all", "groups", "admin"];
@@ -162,14 +163,19 @@ export async function setPaneLayout(form: FormData) {
   const rawColumns = Number(str(form, "columns"));
   const columns = rawColumns === 1 || rawColumns === 2 || rawColumns === 3 ? rawColumns : 2;
 
+  const collapseAfter = parseCollapseAfter(str(form, "collapseAfter"));
+
   await setSetting(SETTING_KEYS.statusPaneShowPing, show ? "true" : "false");
   await setSetting(SETTING_KEYS.statusPaneColumns, String(columns));
+  await setSetting(SETTING_KEYS.statusPaneCollapseAfter, String(collapseAfter));
 
   await recordAudit({
     actor,
     action: "update",
     entityType: "service",
-    summary: `Set status pane to ${columns} column(s), response time ${show ? "shown" : "hidden"}`,
+    summary: `Set status pane to ${columns} column(s), response time ${
+      show ? "shown" : "hidden"
+    }, ${collapseAfter === 0 ? "no collapsing" : `collapsing after ${collapseAfter} tiles`}`,
   });
   refresh();
 }

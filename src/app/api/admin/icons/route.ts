@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminApi, AuthError } from "@/lib/authz";
 import { recordAudit } from "@/lib/audit";
-import { saveIconUpload } from "@/lib/uploads";
+import { parseUploadKind, saveIconUpload } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No file was uploaded." }, { status: 400 });
     }
 
-    const result = await saveIconUpload(file);
+    // The size limit depends on what the file is for — branding artwork is
+    // allowed to be much larger than a service icon.
+    const result = await saveIconUpload(file, parseUploadKind(form.get("kind")));
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }

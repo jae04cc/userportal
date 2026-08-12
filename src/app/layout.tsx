@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { getPortalIdentity } from "@/lib/settings";
+import { getIconOverrides } from "@/lib/branding";
 import "./globals.css";
 
 /**
@@ -12,7 +13,24 @@ import "./globals.css";
  * there are no icon paths declared here.
  */
 export async function generateMetadata(): Promise<Metadata> {
-  const identity = await getPortalIdentity();
+  const [identity, overrides] = await Promise.all([getPortalIdentity(), getIconOverrides()]);
+
+  // An uploaded logo is served verbatim rather than resized, so `sizes` has to
+  // describe the real file. Declaring 512x512 for a 256px upload makes browsers
+  // pick it for a slot it can't fill and it renders soft. Likewise the favicon
+  // drops its `type` when an upload takes it over, since that upload may be an
+  // SVG rather than the generated PNG.
+  const large = overrides.app
+    ? { url: "/api/icon/512", sizes: `${overrides.app.width}x${overrides.app.height}`, type: "image/png" }
+    : { url: "/api/icon/512", sizes: "512x512", type: "image/png" };
+
+  const favicon = overrides.favicon
+    ? { url: "/api/icon/favicon" }
+    : { url: "/api/icon/favicon", sizes: "64x64", type: "image/png" };
+
+  const apple = overrides.app
+    ? { url: "/api/icon/apple", sizes: `${overrides.app.width}x${overrides.app.height}`, type: "image/png" }
+    : { url: "/api/icon/apple", sizes: "180x180", type: "image/png" };
 
   return {
     title: identity.name,
@@ -20,12 +38,9 @@ export async function generateMetadata(): Promise<Metadata> {
     applicationName: identity.name,
     manifest: "/manifest.webmanifest",
     icons: {
-      icon: [
-        { url: "/api/icon/favicon", sizes: "64x64", type: "image/png" },
-        { url: "/api/icon/512", sizes: "512x512", type: "image/png" },
-      ],
+      icon: [favicon, large],
       // iOS home-screen icon. PNG only — Safari ignores SVG here.
-      apple: [{ url: "/api/icon/apple", sizes: "180x180", type: "image/png" }],
+      apple: [apple],
     },
     appleWebApp: {
       capable: true,

@@ -7,9 +7,10 @@ import { categories, services, serviceGroups, type ServiceVisibility } from "@/l
 import { requireAdminApi } from "@/lib/authz";
 import { recordAudit } from "@/lib/audit";
 import { setMotd } from "@/lib/services";
-import { SETTING_KEYS, setSetting } from "@/lib/settings";
+import { SETTING_KEYS, setSetting, setSettings } from "@/lib/settings";
 import { generateId } from "@/lib/utils";
 import { safeUrlOrNull, isSafeIcon } from "@/lib/urls";
+import { isUploadedIconPath } from "@/lib/icons";
 import type { ServiceKind } from "@/lib/db/schema";
 
 /**
@@ -76,6 +77,47 @@ export async function updateIdentity(form: FormData) {
     action: "update",
     entityType: "motd",
     summary: `Set portal name to "${name}" with accent ${accent}`,
+  });
+  refresh();
+}
+
+/**
+ * Uploaded branding: the banner across the top of the landing page and the logo
+ * beside the greeting.
+ *
+ * Both values must be paths this app's own upload endpoint produced. The logo is
+ * read back off disk and re-served as the app icon, so anything else here would
+ * be either a broken icon or a file read outside the uploads directory.
+ */
+export async function updateBranding(form: FormData) {
+  const actor = await requireAdminApi();
+
+  const logo = str(form, "logo");
+  const banner = str(form, "banner");
+  if (logo && !isUploadedIconPath(logo)) return;
+  if (banner && !isUploadedIconPath(banner)) return;
+
+  const rawHeight = str(form, "bannerHeight");
+  const bannerHeight = rawHeight === "sm" || rawHeight === "lg" ? rawHeight : "md";
+
+  // Governs the header only. The favicon and app icon deliberately keep using
+  // the logo whatever this says.
+  const showLogoInHeader = form.get("showLogoInHeader") !== null;
+
+  await setSettings({
+    [SETTING_KEYS.portalLogo]: logo,
+    [SETTING_KEYS.portalLogoInHeader]: showLogoInHeader ? "true" : "false",
+    [SETTING_KEYS.portalBanner]: banner,
+    [SETTING_KEYS.portalBannerHeight]: bannerHeight,
+  });
+
+  await recordAudit({
+    actor,
+    action: "update",
+    entityType: "motd",
+    summary: `Updated branding — logo ${logo ? "set" : "cleared"}${
+      logo && !showLogoInHeader ? " (hidden in header)" : ""
+    }, banner ${banner ? `set (${bannerHeight})` : "cleared"}`,
   });
   refresh();
 }

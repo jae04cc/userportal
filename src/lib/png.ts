@@ -62,6 +62,31 @@ export function encodePng(rgba: Uint8Array, width: number, height: number): Buff
   ]);
 }
 
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/**
+ * Reads width and height out of a PNG's IHDR chunk, which is always first and
+ * always at a fixed offset.
+ *
+ * The manifest has to declare each icon's `sizes`, and a wrong value is worse
+ * than none — Chrome picks an icon by its declared size and will happily choose
+ * one that turns out to be 32px. So an uploaded logo is measured rather than
+ * assumed. Returns null for anything that isn't a PNG, which is also how the
+ * caller decides an upload can't be used in a PNG-only icon slot.
+ */
+export function parsePngSize(buf: Buffer): { width: number; height: number } | null {
+  // 8 signature + 4 length + 4 "IHDR" + 8 dimensions.
+  if (buf.length < 24) return null;
+  if (!buf.subarray(0, 8).equals(PNG_SIGNATURE)) return null;
+  if (buf.subarray(12, 16).toString("ascii") !== "IHDR") return null;
+
+  const width = buf.readUInt32BE(16);
+  const height = buf.readUInt32BE(20);
+  if (width === 0 || height === 0) return null;
+
+  return { width, height };
+}
+
 export type Rgb = { r: number; g: number; b: number };
 
 export function hexToRgb(hex: string): Rgb {

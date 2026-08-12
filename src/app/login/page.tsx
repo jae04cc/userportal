@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { AuthError } from "next-auth";
 import { signIn } from "@/auth";
 import { getCurrentUser } from "@/lib/authz";
-import { getOidcConfig } from "@/lib/settings";
+import { getBranding, getOidcConfig } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -13,8 +13,13 @@ export default async function LoginPage({
 }) {
   if (await getCurrentUser()) redirect("/");
 
-  const oidc = await getOidcConfig();
+  const [oidc, branding] = await Promise.all([getOidcConfig(), getBranding()]);
   const error = searchParams.error;
+
+  // One mark, not both: this column is 24rem wide and stacking a banner above a
+  // logo above the heading pushes the actual sign-in form below the fold on a
+  // phone. The banner wins when there is one, since it's the wider statement.
+  const mark = branding.banner ?? branding.logo;
 
   // The local form is always reachable — it's the break-glass path for the
   // bootstrap admin. It's just not the thing we lead with once SSO is set up.
@@ -25,6 +30,17 @@ export default async function LoginPage({
       id="main"
       className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center px-5 py-10"
     >
+      {mark ? (
+        // eslint-disable-next-line @next/next/no-img-element -- an
+        // admin-uploaded file on this origin.
+        <img
+          src={mark}
+          alt=""
+          aria-hidden="true"
+          className="mb-5 h-14 w-auto max-w-full object-contain object-left"
+        />
+      ) : null}
+
       <h1 className="mb-1 text-xl font-semibold text-slate-100">Sign in</h1>
       <p className="mb-6 text-sm text-slate-500">Access your services.</p>
 

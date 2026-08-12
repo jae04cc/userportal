@@ -18,3 +18,24 @@ export function isImageIcon(icon: string | null | undefined): boolean {
   // is deliberately excluded — it points at another origin.
   return value.startsWith("/") && !value.startsWith("//");
 }
+
+/**
+ * Matches exactly the URL shape `saveIconUpload` hands back for a file it wrote
+ * to the uploads directory.
+ *
+ * Branding images are restricted to this shape rather than accepting any URL.
+ * The logo is re-served as the app icon, which means reading it back off disk —
+ * so it has to be a file we own, and the name has to be one that cannot walk out
+ * of the uploads directory.
+ */
+const UPLOAD_PATH = /^\/api\/icons\/[A-Za-z0-9_-]+\.[A-Za-z0-9]+$/;
+
+export function isUploadedIconPath(value: string | null | undefined): boolean {
+  return typeof value === "string" && UPLOAD_PATH.test(value.trim());
+}
+
+/** The bare file name behind an uploaded-icon path, or null if it isn't one. */
+export function uploadFileName(value: string | null | undefined): string | null {
+  if (!isUploadedIconPath(value)) return null;
+  return value!.trim().slice("/api/icons/".length);
+}

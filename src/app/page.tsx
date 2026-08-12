@@ -2,14 +2,17 @@ import { requireUser } from "@/lib/authz";
 import { getVisibleServices, getMotd } from "@/lib/services";
 import { getVisibleStatusItems } from "@/lib/statusPane";
 import {
+  getBranding,
   getKumaConfig,
   getSetting,
   getServiceCardLayouts,
+  getStatusPaneCollapseAfter,
   getStatusPaneColumns,
   SETTING_KEYS,
 } from "@/lib/settings";
 import { Motd } from "@/components/Motd";
 import { Markdown } from "@/components/Markdown";
+import { PortalBanner } from "@/components/PortalBanner";
 import { PortalHeader } from "@/components/PortalHeader";
 import { LiveArea } from "@/components/LiveArea";
 import { type ClientCategory } from "@/components/ServiceGrid";
@@ -26,16 +29,27 @@ export default async function HomePage() {
   // All of these hit local SQLite and are fast. Uptime Kuma is deliberately NOT
   // awaited here — the pane and grid must paint immediately and let status fill
   // in client-side, rather than blocking first paint on a possibly-slow upstream.
-  const [categories, motd, paneItems, kuma, showPingSetting, paneColumns, cardLayouts] =
-    await Promise.all([
-      getVisibleServices(user),
-      getMotd(),
-      getVisibleStatusItems(user),
-      getKumaConfig(),
-      getSetting(SETTING_KEYS.statusPaneShowPing),
-      getStatusPaneColumns(),
-      getServiceCardLayouts(),
-    ]);
+  const [
+    categories,
+    motd,
+    paneItems,
+    kuma,
+    showPingSetting,
+    paneColumns,
+    paneCollapseAfter,
+    cardLayouts,
+    branding,
+  ] = await Promise.all([
+    getVisibleServices(user),
+    getMotd(),
+    getVisibleStatusItems(user),
+    getKumaConfig(),
+    getSetting(SETTING_KEYS.statusPaneShowPing),
+    getStatusPaneColumns(),
+    getStatusPaneCollapseAfter(),
+    getServiceCardLayouts(),
+    getBranding(),
+  ]);
 
   // Icon sizing is part of the layout pair, so it can differ per breakpoint.
   const iconSize = cardStyle(cardLayouts).icon;
@@ -65,7 +79,11 @@ export default async function HomePage() {
 
   return (
     <main id="main" className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
-      <PortalHeader user={user} />
+      <PortalBanner src={branding.banner} height={branding.bannerHeight} />
+      {/* The header logo is opt-out: a banner that already contains the mark
+          shouldn't repeat it. Hiding it here has no effect on the favicon or
+          the installed app icon, which read the setting directly. */}
+      <PortalHeader user={user} logo={branding.showLogoInHeader ? branding.logo : null} />
 
       {user.mustChangePassword ? (
         <p
@@ -86,6 +104,7 @@ export default async function HomePage() {
         categories={clientCategories}
         showPing={kuma.configured && showPingSetting !== "false"}
         paneColumns={paneColumns}
+        paneCollapseAfter={paneCollapseAfter}
         cardLayouts={cardLayouts}
         motd={<Motd markdown={motd} />}
       />

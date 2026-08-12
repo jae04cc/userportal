@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { inflateSync } from "node:zlib";
-import { Canvas, encodePng, hexToRgb, roundedRectDistance } from "./png";
+import { Canvas, encodePng, hexToRgb, parsePngSize, roundedRectDistance } from "./png";
 
 /** Walks the chunk list of a PNG buffer. */
 function readChunks(png: Buffer): Array<{ type: string; data: Buffer }> {
@@ -157,5 +157,35 @@ describe("Canvas", () => {
     canvas.fill({ r: 0, g: 0, b: 0 });
     expect(() => canvas.roundedRect(4, 4, 40, 40, 4, { r: 255, g: 0, b: 0 })).not.toThrow();
     expect(canvas.data.length).toBe(8 * 8 * 4);
+  });
+});
+
+describe("parsePngSize", () => {
+  it("reads the dimensions back out of a PNG we encoded", () => {
+    // Round-trip against the encoder rather than a hand-built fixture, so the
+    // two can't drift apart.
+    expect(parsePngSize(encodePng(new Uint8Array(37 * 91 * 4), 37, 91))).toEqual({
+      width: 37,
+      height: 91,
+    });
+  });
+
+  it("returns null for a non-PNG", () => {
+    // JPEG magic bytes padded out past the length check.
+    const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(32)]);
+    expect(parsePngSize(jpeg)).toBe(null);
+    expect(parsePngSize(Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'/>"))).toBe(null);
+  });
+
+  it("returns null for a truncated file rather than reading past the end", () => {
+    const png = encodePng(new Uint8Array(4), 1, 1);
+    expect(parsePngSize(png.subarray(0, 20))).toBe(null);
+    expect(parsePngSize(Buffer.alloc(0))).toBe(null);
+  });
+
+  it("returns null when the first chunk isn't IHDR", () => {
+    const png = Buffer.from(encodePng(new Uint8Array(4), 1, 1));
+    png.write("IDAT", 12, "ascii");
+    expect(parsePngSize(png)).toBe(null);
   });
 });

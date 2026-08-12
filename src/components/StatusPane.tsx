@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { HeartbeatStrip } from "./HeartbeatStrip";
 import { UNKNOWN, type MonitorHealth, type ServiceStatus } from "@/lib/status/types";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,35 @@ const COLUMN_CLASS: Record<number, string> = {
   3: "grid-cols-3",
 };
 
+/**
+ * What the collapsed tiles are hiding, if anything.
+ *
+ * Collapsing a status pane risks hiding the one tile that matters, so the toggle
+ * has to say when a fault is folded away. Reordering to pull problems into view
+ * would be the alternative, but that silently overrides the tile order an admin
+ * arranged deliberately.
+ *
+ * "unknown" is not counted: it means no data, not a fault, and a Kuma outage
+ * would otherwise flag every hidden tile at once. Maintenance is planned, so it
+ * isn't counted either.
+ */
+function describeHidden(
+  items: ClientStatusItem[],
+  statuses: Record<string, MonitorHealth>
+): { text: string; className: string } | null {
+  let down = 0;
+  let degraded = 0;
+  for (const item of items) {
+    const status = (statuses[item.id] ?? UNKNOWN).status;
+    if (status === "down") down += 1;
+    else if (status === "degraded") degraded += 1;
+  }
+
+  if (down > 0) return { text: `${down} down`, className: DOT.down };
+  if (degraded > 0) return { text: `${degraded} degraded`, className: DOT.degraded };
+  return null;
+}
+
 /** "99.8%" — never a bare "100%" for something that is actually 99.96%. */
 function formatUptime(uptime24h: number | null): string | null {
   if (uptime24h === null) return null;
@@ -60,15 +90,27 @@ export function StatusPane({
   statuses,
   showPing,
   columns,
+  collapseAfter,
 }: {
   items: ClientStatusItem[];
   statuses: Record<string, MonitorHealth>;
   showPing: boolean;
   columns: number;
+  /** Tiles kept visible before the rest fold away. 0 disables collapsing. */
+  collapseAfter: number;
 }) {
+  const [expanded, setExpanded] = useState(false);
+
   if (items.length === 0) return null;
 
   const stacked = columns >= 2;
+
+  // Collapsing only earns its keep when it actually hides something: with
+  // exactly one tile over the limit, the toggle costs as much room as the tile.
+  const collapsible = collapseAfter > 0 && items.length > collapseAfter + 1;
+  const hidden = collapsible && !expanded ? items.slice(collapseAfter) : [];
+  const visible = hidden.length > 0 ? items.slice(0, collapseAfter) : items;
+  const problems = describeHidden(hidden, statuses);
 
   return (
     <section aria-labelledby="status-pane-heading" className="mb-6">
@@ -76,8 +118,11 @@ export function StatusPane({
         Service status
       </h2>
 
-      <div className={cn("grid gap-x-2 gap-y-1", COLUMN_CLASS[columns] ?? COLUMN_CLASS[2])}>
-        {items.map((item) => {
+      <div
+        id="status-pane-tiles"
+        className={cn("grid gap-x-2 gap-y-1", COLUMN_CLASS[columns] ?? COLUMN_CLASS[2])}
+      >
+        {visible.map((item) => {
           const health = statuses[item.id] ?? UNKNOWN;
           const uptime = formatUptime(health.uptime24h);
           const word = WORD[health.status] ?? WORD.unknown;
@@ -151,6 +196,39 @@ export function StatusPane({
           );
         })}
       </div>
+
+      {collapsible ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+          aria-expanded={expanded}
+          aria-controls="status-pane-tiles"
+          className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-md border border-surface-border bg-surface-raised px-2.5 py-1 text-[11px] text-slate-400 transition-colors hover:bg-surface-hover hover:text-slate-200"
+        >
+          <span>{expanded ? "Show fewer" : `Show ${items.length - collapseAfter} more`}</span>
+
+          {/* Named as well as coloured — a fault folded out of sight must not be
+              announced by colour alone. */}
+          {problems ? (
+            <span className={cn("font-medium", problems.className)}>· {problems.text}</span>
+          ) : null}
+
+          {/* Inline rather than a lucide import: this is a client component, and
+              one chevron isn't worth the icon library crossing into the bundle. */}
+          <svg
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            className={cn("h-3.5 w-3.5 transition-transform", expanded && "rotate-180")}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+      ) : null}
     </section>
   );
 }

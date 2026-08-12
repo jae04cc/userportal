@@ -11,7 +11,14 @@ import {
   setPaneLayout,
   updateStatusItem,
 } from "@/lib/actions/statusPane";
-import { getKumaConfig, getSetting, getStatusPaneColumns, SETTING_KEYS } from "@/lib/settings";
+import {
+  getKumaConfig,
+  getSetting,
+  getStatusPaneCollapseAfter,
+  getStatusPaneColumns,
+  SETTING_KEYS,
+} from "@/lib/settings";
+import { COLLAPSE_AFTER_OPTIONS } from "@/lib/paneLayout";
 import { discoverMonitors } from "@/lib/status";
 
 export const dynamic = "force-dynamic";
@@ -25,14 +32,16 @@ const VISIBILITY_LABEL = {
 export default async function AdminStatusPanePage() {
   const kuma = await getKumaConfig();
 
-  const [items, allGroups, itemGroups, monitors, showPing, paneColumns] = await Promise.all([
-    db.select().from(statusItems).orderBy(asc(statusItems.sortOrder), asc(statusItems.label)),
-    db.select().from(groups).orderBy(asc(groups.name)),
-    db.select().from(statusItemGroups),
-    kuma.configured ? discoverMonitors() : Promise.resolve([]),
-    getSetting(SETTING_KEYS.statusPaneShowPing),
-    getStatusPaneColumns(),
-  ]);
+  const [items, allGroups, itemGroups, monitors, showPing, paneColumns, paneCollapseAfter] =
+    await Promise.all([
+      db.select().from(statusItems).orderBy(asc(statusItems.sortOrder), asc(statusItems.label)),
+      db.select().from(groups).orderBy(asc(groups.name)),
+      db.select().from(statusItemGroups),
+      kuma.configured ? discoverMonitors() : Promise.resolve([]),
+      getSetting(SETTING_KEYS.statusPaneShowPing),
+      getStatusPaneColumns(),
+      getStatusPaneCollapseAfter(),
+    ]);
 
   const groupsByItem = new Map<string, string[]>();
   for (const g of itemGroups) {
@@ -64,6 +73,25 @@ export default async function AdminStatusPanePage() {
               <option value="1">One — full width</option>
               <option value="2">Two</option>
               <option value="3">Three — most compact</option>
+            </select>
+          </Field>
+
+          <Field
+            label="Collapse after"
+            htmlFor="pane-collapse"
+            hint="Extra tiles fold behind a “Show more” toggle. If a hidden tile is down or degraded, the toggle says so — it never buries a fault silently."
+          >
+            <select
+              id="pane-collapse"
+              name="collapseAfter"
+              defaultValue={String(paneCollapseAfter)}
+              className={inputClass}
+            >
+              {COLLAPSE_AFTER_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n === 0 ? "Never — always show every tile" : `${n} tiles`}
+                </option>
+              ))}
             </select>
           </Field>
 

@@ -2,6 +2,8 @@ import "server-only";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { appSettings } from "@/lib/db/schema";
+import { isUploadedIconPath } from "@/lib/icons";
+import { parseCollapseAfter } from "@/lib/paneLayout";
 
 /**
  * ALL runtime configuration lives in the database and is edited from the admin
@@ -23,6 +25,14 @@ export const SETTING_KEYS = {
   portalName: "portal_name",
   /** Icon accent colour — the fastest way to tell two installs apart. */
   portalAccent: "portal_accent",
+  /** Uploaded square logo. Reused as the favicon and app icon. */
+  portalLogo: "portal_logo",
+  /** Whether that logo is ALSO drawn beside the greeting. Icon slots ignore this. */
+  portalLogoInHeader: "portal_logo_in_header",
+  /** Uploaded wide banner, shown across the top of the landing page. */
+  portalBanner: "portal_banner",
+  /** How tall the banner is allowed to be: "sm" | "md" | "lg". */
+  portalBannerHeight: "portal_banner_height",
 
   kumaBaseUrl: "kuma_base_url",
   kumaStatusSlug: "kuma_status_slug",
@@ -31,6 +41,8 @@ export const SETTING_KEYS = {
   statusPaneShowPing: "status_pane_show_ping",
   /** How many tiles sit side by side: "1" | "2" | "3". */
   statusPaneColumns: "status_pane_columns",
+  /** Tiles shown before the rest collapse behind a toggle. "0" = never collapse. */
+  statusPaneCollapseAfter: "status_pane_collapse_after",
   /** Service card layout per breakpoint: "detailed" | "compact". */
   serviceCardLayoutMobile: "service_card_layout_mobile",
   serviceCardLayoutDesktop: "service_card_layout_desktop",
@@ -212,6 +224,64 @@ export async function getPortalIdentity(): Promise<PortalIdentity> {
   return { name, accent };
 }
 
+/**
+ * Uploaded branding artwork.
+ *
+ * Both are optional and both are `/api/icons/…` paths written by the upload
+ * endpoint — never arbitrary URLs, because the logo is read back off disk to be
+ * re-served as the app icon.
+ */
+export type BannerHeight = "sm" | "md" | "lg";
+export type Branding = {
+  /** Square-ish mark used as the favicon and app icon. */
+  logo: string | null;
+  /**
+   * Whether the logo is also drawn beside the greeting.
+   *
+   * Separate from `logo` because a banner often already contains the mark, and
+   * repeating it beside the greeting reads as a mistake. Turning this off must
+   * NOT disturb the favicon or the installed app icon, so the icon slots read
+   * `logo` and ignore this flag entirely.
+   */
+  showLogoInHeader: boolean;
+  /** Wide artwork shown across the top of the landing page. */
+  banner: string | null;
+  bannerHeight: BannerHeight;
+};
+
+export async function getBranding(): Promise<Branding> {
+  let saved: Record<string, string> = {};
+
+  try {
+    saved = await getSettings([
+      SETTING_KEYS.portalLogo,
+      SETTING_KEYS.portalLogoInHeader,
+      SETTING_KEYS.portalBanner,
+      SETTING_KEYS.portalBannerHeight,
+    ]);
+  } catch {
+    // Same reason as getPortalIdentity: this is read while generating metadata,
+    // which happens at build time where there is no database.
+    return { logo: null, showLogoInHeader: true, banner: null, bannerHeight: "md" };
+  }
+
+  const rawHeight = saved[SETTING_KEYS.portalBannerHeight];
+
+  return {
+    // Re-validated on read, not just on write: a value that predates the
+    // validation, or one edited directly in the database, must not become an
+    // arbitrary path for the icon route to open.
+    logo: isUploadedIconPath(saved[SETTING_KEYS.portalLogo]) ? saved[SETTING_KEYS.portalLogo] : null,
+    // Defaults to on: someone who uploads a logo and saves nothing else should
+    // see it appear.
+    showLogoInHeader: saved[SETTING_KEYS.portalLogoInHeader] !== "false",
+    banner: isUploadedIconPath(saved[SETTING_KEYS.portalBanner])
+      ? saved[SETTING_KEYS.portalBanner]
+      : null,
+    bannerHeight: rawHeight === "sm" || rawHeight === "lg" ? rawHeight : "md",
+  };
+}
+
 export type CardLayout = "detailed" | "compact";
 
 /**
@@ -250,6 +320,10 @@ export async function getStatusPaneColumns(): Promise<PaneColumns> {
   const raw = await getSetting(SETTING_KEYS.statusPaneColumns);
   const parsed = Number(raw);
   return parsed === 1 || parsed === 2 || parsed === 3 ? (parsed as PaneColumns) : 2;
+}
+
+export async function getStatusPaneCollapseAfter(): Promise<number> {
+  return parseCollapseAfter(await getSetting(SETTING_KEYS.statusPaneCollapseAfter));
 }
 
 export async function getSessionMaxAge(): Promise<number> {

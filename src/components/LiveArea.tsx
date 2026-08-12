@@ -22,6 +22,7 @@ export function LiveArea({
   categories,
   showPing,
   paneColumns,
+  paneCollapseAfter,
   cardLayouts,
   motd,
 }: {
@@ -29,6 +30,7 @@ export function LiveArea({
   categories: ClientCategory[];
   showPing: boolean;
   paneColumns: number;
+  paneCollapseAfter: number;
   cardLayouts: CardLayouts;
   motd: ReactNode;
 }) {
@@ -41,6 +43,7 @@ export function LiveArea({
         statuses={pane}
         showPing={showPing}
         columns={paneColumns}
+        collapseAfter={paneCollapseAfter}
       />
       {motd}
       <div className="mt-8">

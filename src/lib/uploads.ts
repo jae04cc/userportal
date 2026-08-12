@@ -15,7 +15,27 @@ if (!existsSync(UPLOADS_DIR)) {
   mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 
-const MAX_BYTES = 512 * 1024;
+/**
+ * Size limits differ by what the file is for.
+ *
+ * A service icon is drawn at 40px or so, and dozens of them load on the landing
+ * page — 512KB each is already generous. Branding artwork is one wide image
+ * loaded once, and exported at a sensible print-ish resolution it routinely runs
+ * past 512KB, so the icon limit rejected perfectly reasonable banners.
+ *
+ * These are not security limits (the uploader is an admin); they're there to
+ * stop the landing page quietly becoming multi-megabyte.
+ */
+export const UPLOAD_LIMITS = {
+  icon: 512 * 1024,
+  branding: 4 * 1024 * 1024,
+} as const;
+
+export type UploadKind = keyof typeof UPLOAD_LIMITS;
+
+export function parseUploadKind(value: unknown): UploadKind {
+  return value === "branding" ? "branding" : "icon";
+}
 
 /**
  * Allow-list by both MIME type and extension. SVG is permitted because most
@@ -35,11 +55,17 @@ export const ALLOWED_ICON_TYPES = Object.keys(ALLOWED);
 
 export type UploadResult = { ok: true; url: string } | { ok: false; error: string };
 
-export async function saveIconUpload(file: File): Promise<UploadResult> {
+export async function saveIconUpload(file: File, kind: UploadKind = "icon"): Promise<UploadResult> {
   if (!file || file.size === 0) return { ok: false, error: "No file was selected." };
 
-  if (file.size > MAX_BYTES) {
-    return { ok: false, error: `That file is ${Math.round(file.size / 1024)}KB; the limit is 512KB.` };
+  const limit = UPLOAD_LIMITS[kind];
+  if (file.size > limit) {
+    return {
+      ok: false,
+      error: `That file is ${Math.round(file.size / 1024)}KB; the limit is ${Math.round(
+        limit / 1024
+      )}KB.`,
+    };
   }
 
   const ext = ALLOWED[file.type];

@@ -9,14 +9,27 @@ import type { CurrentUser } from "@/lib/authz";
  * destructive action, and giving it a permanent button at the top of every
  * visit cost more space than it earned.
  */
-export function PortalHeader({ user }: { user: CurrentUser }) {
+export function PortalHeader({ user, logo }: { user: CurrentUser; logo?: string | null }) {
   const name = user.displayName?.trim() || user.username;
 
   return (
     <header className="mb-6 flex items-center justify-between gap-3">
-      <h1 className="truncate text-xl font-semibold text-slate-100 sm:text-2xl">
-        {greeting()}, {name}
-      </h1>
+      <div className="flex min-w-0 items-center gap-3">
+        {logo ? (
+          // eslint-disable-next-line @next/next/no-img-element -- an
+          // admin-uploaded file on this origin.
+          <img
+            src={logo}
+            alt=""
+            aria-hidden="true"
+            className="h-9 w-9 shrink-0 rounded-md object-contain sm:h-10 sm:w-10"
+          />
+        ) : null}
+
+        <h1 className="truncate text-xl font-semibold text-slate-100 sm:text-2xl">
+          {greeting()}, {name}
+        </h1>
+      </div>
 
       <nav aria-label="Account" className="flex shrink-0 items-center gap-1">
         {user.isAdmin ? (
