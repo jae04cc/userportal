@@ -47,6 +47,42 @@ export function ServiceModal({
     return () => dialog.removeEventListener("close", handleClose);
   }, [onClose]);
 
+  /**
+   * Freeze the page behind the dialog.
+   *
+   * `showModal()` blocks interaction with the page but does NOT stop it
+   * scrolling — on a phone, dragging anywhere outside the dialog scrolls the
+   * portal underneath it. `overflow: hidden` alone isn't enough on iOS either,
+   * so the body is pinned with `position: fixed` at its current offset and the
+   * scroll position is restored on close, which is what stops the page jumping
+   * back to the top when the dialog is dismissed.
+   */
+  useEffect(() => {
+    if (!open) return;
+
+    const { body } = document;
+    const scrollY = window.scrollY;
+    const previous = {
+      position: body.style.position,
+      top: body.style.top,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    };
+
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
+
+    return () => {
+      body.style.position = previous.position;
+      body.style.top = previous.top;
+      body.style.width = previous.width;
+      body.style.overflow = previous.overflow;
+      window.scrollTo(0, scrollY);
+    };
+  }, [open]);
+
   return (
     <dialog
       ref={ref}
@@ -58,7 +94,9 @@ export function ServiceModal({
       }}
       className="w-[min(42rem,calc(100vw-2rem))] rounded-lg border border-surface-border bg-surface-raised p-0 text-slate-200 backdrop:bg-black/60"
     >
-      <div className="flex max-h-[80vh] flex-col">
+      {/* overscroll-contain stops a scroll that reaches the end of the body
+          from chaining out to the page behind it. */}
+      <div className="flex max-h-[80vh] flex-col overscroll-contain">
         <div className="flex items-start gap-3 border-b border-surface-border px-5 py-4">
           <div className="min-w-0 flex-1">
             <h2 id="service-modal-title" className="text-base font-medium text-slate-100">
@@ -76,7 +114,7 @@ export function ServiceModal({
           </button>
         </div>
 
-        <div className="overflow-y-auto px-5 py-4">{children}</div>
+        <div className="overflow-y-auto overscroll-contain px-5 py-4">{children}</div>
       </div>
     </dialog>
   );
