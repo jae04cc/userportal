@@ -176,7 +176,7 @@ export function ServiceForm({
           <Field
             label="Content"
             htmlFor={`content-${uid}`}
-            hint="Markdown: headings, bold, italic, links, lists, quotes and code. Raw HTML is not rendered."
+            hint="Markdown. Enter starts a new line; a blank line starts a new paragraph with more space; --- draws a divider. Headings, bold, italic, links, lists, quotes and code all work. Raw HTML is not rendered."
           >
             <textarea
               id={`content-${uid}`}

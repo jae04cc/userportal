@@ -28,8 +28,10 @@ export function MotdEditor({ initial }: { initial: string }) {
           placeholder="**Maintenance Sunday 2am** — Jellyfin will be down for ~30 minutes."
         />
         <p className="mt-1 text-xs text-slate-600">
-          Supports bold, italic, links, and lists. Raw HTML is not rendered. Leave empty to hide the
-          banner entirely.
+          Enter starts a new line. A blank line starts a new paragraph, with more space between.
+          Extra blank lines beyond one change nothing — use <code>---</code> for a divider. Bold,
+          italic, links, headings and lists all work; raw HTML is not rendered. Leave empty to hide
+          the banner entirely.
         </p>
       </div>
 
