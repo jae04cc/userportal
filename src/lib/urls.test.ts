@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isSafeUrl, safeUrlOrNull, isSafeIcon } from "./urls";
+import { isSafeUrl, safeUrlOrNull, isSafeIcon, normalizePublicOrigin } from "./urls";
 
 describe("isSafeUrl", () => {
   it("accepts http and https", () => {
@@ -64,5 +64,43 @@ describe("isSafeIcon", () => {
 
   it("rejects a javascript: icon value", () => {
     expect(isSafeIcon("javascript:alert(1)")).toBe(false);
+  });
+});
+
+describe("normalizePublicOrigin", () => {
+  it("reduces a URL to its bare origin", () => {
+    expect(normalizePublicOrigin("https://devportal.murky.media")).toBe(
+      "https://devportal.murky.media"
+    );
+    expect(normalizePublicOrigin("  https://devportal.murky.media/  ")).toBe(
+      "https://devportal.murky.media"
+    );
+    expect(normalizePublicOrigin("http://192.168.86.16:5175")).toBe("http://192.168.86.16:5175");
+  });
+
+  it("strips any path, query or fragment", () => {
+    // Auth.js reads a non-root pathname as a basePath and moves every auth
+    // route, so a pasted URL with a trailing path must not survive.
+    expect(normalizePublicOrigin("https://portal.example.com/login")).toBe(
+      "https://portal.example.com"
+    );
+    expect(normalizePublicOrigin("https://portal.example.com/?a=1#x")).toBe(
+      "https://portal.example.com"
+    );
+  });
+
+  it("normalises default ports", () => {
+    expect(normalizePublicOrigin("https://portal.example.com:443")).toBe(
+      "https://portal.example.com"
+    );
+  });
+
+  it("returns null for anything unusable", () => {
+    expect(normalizePublicOrigin("")).toBe(null);
+    expect(normalizePublicOrigin("   ")).toBe(null);
+    expect(normalizePublicOrigin(null)).toBe(null);
+    expect(normalizePublicOrigin("devportal.murky.media")).toBe(null); // no scheme
+    expect(normalizePublicOrigin("javascript:alert(1)")).toBe(null);
+    expect(normalizePublicOrigin("ftp://example.com")).toBe(null);
   });
 });

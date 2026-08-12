@@ -24,6 +24,7 @@ export function OidcSettingsForm({
   sessionMaxAge,
   groups,
   callbackUrl,
+  publicUrl,
 }: {
   issuer: string;
   clientId: string;
@@ -35,13 +36,37 @@ export function OidcSettingsForm({
   sessionMaxAge: number;
   groups: Array<{ id: string; name: string }>;
   callbackUrl: string;
+  publicUrl: string;
 }) {
   const [state, formAction] = useFormState<ActionResult | null, FormData>(saveOidcSettings, null);
 
   return (
     <form action={formAction} className="grid gap-3 sm:grid-cols-2">
+      <div className="sm:col-span-2">
+        <Field
+          label="Portal public URL"
+          htmlFor="publicUrl"
+          hint={
+            publicUrl
+              ? "Pinned. Sign-in redirects use this address regardless of what the proxy sends."
+              : "Optional. Leave blank to work it out from each request — set it if your reverse proxy rewrites the Host header, which makes sign-in redirect to an unreachable address."
+          }
+        >
+          <input
+            id="publicUrl"
+            name="publicUrl"
+            defaultValue={publicUrl}
+            placeholder="https://portal.example.com"
+            className={inputClass}
+          />
+        </Field>
+      </div>
+
       <div className="sm:col-span-2 rounded-md border border-surface-border bg-surface-base p-3">
-        <p className="text-xs text-slate-500">Redirect URI to register in your identity provider:</p>
+        <p className="text-xs text-slate-500">
+          Redirect URI to register in your identity provider
+          {publicUrl ? " (from the public URL above)" : " (from this request)"}:
+        </p>
         <code className="mt-1 block break-all text-sm text-sky-300">{callbackUrl}</code>
       </div>
 

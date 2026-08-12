@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { groups } from "@/lib/db/schema";
 import { requireAdminApi } from "@/lib/authz";
 import { recordAudit } from "@/lib/audit";
-import { safeUrlOrNull } from "@/lib/urls";
+import { normalizePublicOrigin, safeUrlOrNull } from "@/lib/urls";
 import {
   SETTING_KEYS,
   setSettings,
@@ -67,6 +67,16 @@ export async function saveOidcSettings(
 
   const rawMaxAge = Number(str(form, "sessionMaxAge"));
   const sessionMaxAge = Number.isFinite(rawMaxAge) && rawMaxAge >= 300 ? rawMaxAge : DEFAULT_SESSION_MAX_AGE;
+
+  // Validated and saved ahead of everything else, and on every path including
+  // the disable branch below: it governs where sign-in redirects land, so it
+  // must not be lost just because SSO is being turned off in the same submit.
+  const rawPublicUrl = str(form, "publicUrl");
+  const publicUrl = rawPublicUrl ? normalizePublicOrigin(rawPublicUrl) : "";
+  if (publicUrl === null) {
+    return { ok: false, message: "The portal public URL must be a full http:// or https:// address." };
+  }
+  await setSettings({ [SETTING_KEYS.publicUrl]: publicUrl });
 
   // Clearing issuer and client id turns SSO off; the local login remains.
   if (!rawIssuer && !clientId) {

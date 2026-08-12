@@ -6,7 +6,13 @@ import { appSettings, groups, userGroups, users } from "@/lib/db/schema";
 import { verifyPassword } from "@/lib/password";
 import { rateLimit, clientIp } from "@/lib/rateLimit";
 import { generateId } from "@/lib/utils";
-import { getOidcConfig, getSessionMaxAge, getSetting, SETTING_KEYS } from "@/lib/settings";
+import {
+  getOidcConfig,
+  getPublicUrl,
+  getSessionMaxAge,
+  getSetting,
+  SETTING_KEYS,
+} from "@/lib/settings";
 import {
   extractGroups,
   isAdminFromGroups,
@@ -128,11 +134,34 @@ export const { handlers, auth, signIn, signOut } = NextAuth(async () => {
   // in the admin area take effect immediately with no restart.
   await ensureDbReady();
 
-  const [secret, oidc, maxAge] = await Promise.all([
+  const [secret, oidc, maxAge, publicUrl] = await Promise.all([
     getOrCreateSecret(),
     getOidcConfig(),
     getSessionMaxAge(),
+    getPublicUrl(),
   ]);
+
+  /**
+   * Pin the origin used for callback and error URLs.
+   *
+   * next-auth reads AUTH_URL from the environment per request (`reqWithEnvURL`),
+   * and this config function is awaited BEFORE that read happens — so assigning
+   * it here applies to the very request being handled. It goes through the
+   * environment because that is the only override the library offers; there is
+   * no config field for it.
+   *
+   * Without this the origin comes from the Host header. A proxy that rewrites
+   * Host to the upstream address then produces callback and error URLs pointing
+   * somewhere the browser cannot reach.
+   *
+   * Deleted rather than left stale when unset, so clearing the setting really
+   * does return to header-derived behaviour.
+   */
+  if (publicUrl) {
+    process.env.AUTH_URL = publicUrl;
+  } else {
+    delete process.env.AUTH_URL;
+  }
 
   const providers: NextAuthConfig["providers"] = [];
 

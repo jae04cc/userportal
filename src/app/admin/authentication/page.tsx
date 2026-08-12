@@ -4,24 +4,33 @@ import { db } from "@/lib/db";
 import { groups } from "@/lib/db/schema";
 import { Panel } from "@/components/admin/ui";
 import { OidcSettingsForm } from "@/components/admin/OidcSettingsForm";
-import { getOidcConfig, getSetting, getSessionMaxAge, SETTING_KEYS } from "@/lib/settings";
+import {
+  getOidcConfig,
+  getPublicUrl,
+  getSetting,
+  getSessionMaxAge,
+  SETTING_KEYS,
+} from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminAuthenticationPage() {
-  const [oidc, allGroups, defaultGroupId, sessionMaxAge] = await Promise.all([
+  const [oidc, allGroups, defaultGroupId, sessionMaxAge, publicUrl] = await Promise.all([
     getOidcConfig(),
     db.select().from(groups).orderBy(asc(groups.name)),
     getSetting(SETTING_KEYS.defaultGroupId),
     getSessionMaxAge(),
+    getPublicUrl(),
   ]);
 
-  // Derive the callback URL from the request, so it's correct behind a reverse
-  // proxy without anyone configuring a public URL anywhere.
+  // A configured public URL wins, because that is exactly what sign-in will use.
+  // Otherwise derive it from the request, which is right whenever the proxy
+  // forwards the original host.
   const h = headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost";
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  const callbackUrl = `${proto}://${host}/api/auth/callback/oidc`;
+  const origin = publicUrl ?? `${proto}://${host}`;
+  const callbackUrl = `${origin}/api/auth/callback/oidc`;
 
   return (
     <>
@@ -40,6 +49,7 @@ export default async function AdminAuthenticationPage() {
           sessionMaxAge={sessionMaxAge}
           groups={allGroups.map((g) => ({ id: g.id, name: g.name }))}
           callbackUrl={callbackUrl}
+          publicUrl={publicUrl ?? ""}
         />
       </Panel>
 

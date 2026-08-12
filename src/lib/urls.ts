@@ -34,6 +34,32 @@ export function safeUrlOrNull(value: string): string | null {
 }
 
 /**
+ * The portal's own public address, reduced to a bare origin.
+ *
+ * Auth.js builds callback and error URLs from the incoming Host header. Behind a
+ * proxy that rewrites Host to the upstream address, that produces URLs pointing
+ * at an internal address the browser cannot reach — which is what turned a
+ * sign-in failure into a dead "https://0.0.0.0:5175/…" page. Setting this pins
+ * the origin instead of trusting the header.
+ *
+ * The result is always an origin with no path. A trailing path would be read by
+ * Auth.js as a basePath and quietly move every auth route.
+ */
+export function normalizePublicOrigin(raw: string | null | undefined): string | null {
+  const trimmed = String(raw ?? "").trim();
+  if (!trimmed) return null;
+
+  try {
+    const url = new URL(trimmed);
+    if (!ALLOWED_SCHEMES.includes(url.protocol)) return null;
+    // `origin` drops any path, query and fragment, and normalises a default port.
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Icons are either an uploaded/remote image URL or a lucide icon name. Only the
  * URL form needs checking; a bare name can't be a scheme.
  */

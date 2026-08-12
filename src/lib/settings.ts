@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { appSettings } from "@/lib/db/schema";
 import { isUploadedIconPath } from "@/lib/icons";
 import { parseCollapseAfter } from "@/lib/paneLayout";
+import { normalizePublicOrigin } from "@/lib/urls";
 
 /**
  * ALL runtime configuration lives in the database and is edited from the admin
@@ -46,6 +47,15 @@ export const SETTING_KEYS = {
   /** Service card layout per breakpoint: "detailed" | "compact". */
   serviceCardLayoutMobile: "service_card_layout_mobile",
   serviceCardLayoutDesktop: "service_card_layout_desktop",
+
+  /**
+   * The portal's own public origin, e.g. https://portal.example.com.
+   *
+   * Pins the address used to build sign-in callback and error URLs instead of
+   * deriving it from the Host header, which a reverse proxy may rewrite to an
+   * internal address the browser can't reach.
+   */
+  publicUrl: "public_url",
 
   oidcIssuer: "oidc_issuer",
   oidcClientId: "oidc_client_id",
@@ -184,6 +194,22 @@ export async function getOidcConfig(): Promise<OidcConfig> {
     adminGroup: (saved[SETTING_KEYS.oidcAdminGroup] ?? "").trim(),
     enabled: Boolean(issuer && clientId && clientSecret),
   };
+}
+
+/**
+ * The configured public origin, or null to fall back to the request's headers.
+ *
+ * Re-normalised on read so a value that predates validation, or one edited
+ * directly in the database, still can't inject a path into the auth base.
+ */
+export async function getPublicUrl(): Promise<string | null> {
+  try {
+    return normalizePublicOrigin(await getSetting(SETTING_KEYS.publicUrl));
+  } catch {
+    // Read during auth config, which runs on requests that may arrive before
+    // migrations have completed on a brand-new database.
+    return null;
+  }
 }
 
 export type PortalIdentity = { name: string; accent: string };
