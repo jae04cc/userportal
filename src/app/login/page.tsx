@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { AuthError } from "next-auth";
 import { signIn } from "@/auth";
 import { getCurrentUser } from "@/lib/authz";
 import { getBranding, getOidcConfig } from "@/lib/settings";
+import { SSO_ATTEMPT_COOKIE } from "@/lib/sso";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +26,25 @@ export default async function LoginPage({
   // The local form is always reachable — it's the break-glass path for the
   // bootstrap admin. It's just not the thing we lead with once SSO is set up.
   const showLocalByDefault = !oidc.enabled || searchParams.local === "1";
+
+  /**
+   * With SSO configured this page normally shouldn't be seen at all: someone
+   * already authenticated at the identity provider should land on the portal,
+   * not on a screen asking them to sign in again. The redirect happens before
+   * anything renders, so no login button ever flashes up.
+   *
+   * Three conditions suppress the automatic start, and each one earns its place:
+   *   ?local=1        an explicit request for the local form — the break-glass path
+   *   ?error=…        a failed attempt. Retrying automatically would turn an
+   *                   error message into an infinite redirect loop.
+   *   attempt cookie  we just started SSO and are somehow back here, which means
+   *                   the IdP authenticated them but the portal did not — a
+   *                   suspended account, typically. Show the page, don't loop.
+   */
+  const justTried = cookies().get(SSO_ATTEMPT_COOKIE) !== undefined;
+  if (oidc.enabled && !showLocalByDefault && !error && !justTried) {
+    redirect("/api/sso");
+  }
 
   return (
     <main
@@ -52,6 +73,17 @@ export default async function LoginPage({
           {error === "CredentialsSignin"
             ? "Incorrect username or password."
             : "Could not sign you in. Please try again."}
+        </p>
+      ) : justTried ? (
+        // Reached only when SSO just ran and sent us back here. The identity
+        // provider accepted them; the portal didn't. Saying so beats silently
+        // showing a sign-in button they have already used.
+        <p
+          role="alert"
+          className="mb-4 rounded-md border border-amber-900 bg-amber-950/40 px-3 py-2 text-sm text-amber-300"
+        >
+          You signed in with {oidc.displayName}, but the portal didn&apos;t accept the account. It
+          may be disabled here. Try again, or contact an administrator.
         </p>
       ) : null}
 
