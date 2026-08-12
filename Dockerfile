@@ -37,6 +37,14 @@ ENV UPLOADS_DIR=/data/uploads
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
+# Break-glass recovery. The standalone bundle contains only what the server
+# imports, so without this the documented lockout fix
+#   docker exec userportal node scripts/reset-admin.mjs
+# fails with "Cannot find module" — precisely when you can't sign in to fix it
+# any other way. @libsql/client is already traced into standalone/node_modules,
+# so the script needs nothing else.
+COPY --from=builder /app/scripts/reset-admin.mjs ./scripts/reset-admin.mjs
+
 # Holds the SQLite database and uploaded service icons
 RUN mkdir -p /data/uploads
 VOLUME ["/data"]

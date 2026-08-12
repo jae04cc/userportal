@@ -8,5 +8,7 @@ data
 .env
 .env.local
 .env.*.local
-scripts
+# scripts/reset-admin.mjs is deliberately NOT excluded — it's the documented
+# lockout recovery path and has to exist inside the running container.
+scripts/seed-test-data.mjs
 README.md
