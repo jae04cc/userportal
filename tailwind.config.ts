@@ -2,6 +2,12 @@ import type { Config } from "tailwindcss";
 
 const config: Config = {
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
+  future: {
+    // Wraps every `hover:` variant in @media (hover: hover). Without this, a
+    // tap on a touch screen leaves the hover styles stuck on the card until
+    // you tap elsewhere, which reads as the card staying "selected".
+    hoverOnlyWhenSupported: true,
+  },
   theme: {
     extend: {
       colors: {

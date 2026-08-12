@@ -17,6 +17,31 @@
     @apply outline outline-2 outline-offset-2 outline-sky-400;
   }
 
+  /* Touch behaviour.
+     - No grey flash box when a card is tapped (WebKit/Blink draw one by
+       default, and on a swipe it appears even though you never activated it).
+     - Interactive surfaces aren't selectable, so dragging to scroll doesn't
+       start a text selection across the cards. Body copy stays selectable —
+       only the tappable chrome opts out. */
+  a,
+  button,
+  [role="button"],
+  summary {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+
+  /* Content people may legitimately want to copy keeps normal selection. */
+  p,
+  li,
+  code,
+  pre,
+  td,
+  dd {
+    user-select: text;
+  }
+
   /* Hide scrollbar chrome everywhere, without disabling scrolling.
      Only the visual bar goes: wheel, touch, keyboard (arrows, Page Up/Down,
      Home/End) and programmatic scrolling all still work, and the scroll
