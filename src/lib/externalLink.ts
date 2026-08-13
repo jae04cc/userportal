@@ -17,8 +17,27 @@
  * navigation that would have happened anyway.
  */
 
-/** How long to wait for iOS to take over before assuming the scheme was ignored. */
-export const SAFARI_HANDOFF_MS = 600;
+/**
+ * How long to wait for iOS to take over before assuming the scheme was ignored.
+ *
+ * Generous on purpose. Launching Safari from a backgrounded web app can take
+ * well over a second on a cold start, and being too eager here is worse than
+ * being slow: the fallback fires, the in-app browser opens behind Safari, and
+ * you come back to the portal to find a stray window sitting there. A dead
+ * couple of seconds on the rare unsupported device is the better trade.
+ */
+export const SAFARI_HANDOFF_MS = 2500;
+
+/**
+ * Events that all mean the same thing — this page is no longer in front, so
+ * something else (Safari, we hope) took over.
+ *
+ * Three rather than one because none is guaranteed: `visibilitychange` is the
+ * documented signal but fires only once iOS has actually backgrounded the app,
+ * `pagehide` covers the page being torn down, and `blur` tends to arrive first
+ * when focus moves to another app. Whichever lands first wins.
+ */
+const HANDOFF_EVENTS = ["visibilitychange", "pagehide", "blur"] as const;
 
 /**
  * The `x-safari-` form of an external URL, or null if this URL should be left
@@ -82,19 +101,28 @@ type HandoffDeps = {
   addListener: (type: string, handler: () => void) => void;
   removeListener: (type: string, handler: () => void) => void;
   setTimer: (fn: () => void, ms: number) => void;
+  /** Wall clock, used to notice a timer that was throttled while backgrounded. */
+  now: () => number;
 };
 
 /**
  * Ask iOS to open `url` in Safari, and put it back the way it was if it won't.
  *
- * The handoff is detected by the document being backgrounded: if Safari comes
- * to the front, this page is hidden and the fallback is cancelled. If nothing
- * happens within the timeout, the plain URL is navigated to, which is exactly
- * what the link would have done untouched.
+ * Getting the *failure* detection right matters more than the success path:
+ * falling back when Safari did in fact open leaves an in-app browser window
+ * sitting behind it, which is what you find when you switch back to the portal.
+ * So the fallback is suppressed on any of four signals, and only fires when all
+ * of them say this page never stopped being in front:
  *
- * Dependencies are injected so the timing and the cancellation are testable
- * without a browser — the whole point of this function is what it does when the
- * scheme is NOT supported, which is unreachable in any environment I can run.
+ *  - one of the handoff events arrived
+ *  - the page is hidden right now
+ *  - the timer came due far later than it was set for, which only happens
+ *    because iOS throttled it while the app was in the background — evidence of
+ *    a handoff on its own, and the one signal that survives the events not
+ *    firing at all
+ *
+ * Dependencies are injected so all of this is testable without a browser — the
+ * behaviour that matters is unreachable in any environment I can run.
  */
 export function requestSafariHandoff(
   url: string,
@@ -112,14 +140,18 @@ export function requestSafariHandoff(
     handedOff = true;
   };
 
-  // Either event means we're no longer the foreground page.
-  deps.addListener("visibilitychange", settle);
-  deps.addListener("pagehide", settle);
+  for (const type of HANDOFF_EVENTS) deps.addListener(type, settle);
+
+  const startedAt = deps.now();
 
   deps.setTimer(() => {
-    deps.removeListener("visibilitychange", settle);
-    deps.removeListener("pagehide", settle);
-    if (handedOff || deps.isHidden()) return;
+    for (const type of HANDOFF_EVENTS) deps.removeListener(type, settle);
+
+    // A timer that is substantially overdue was throttled, which only happens
+    // to a backgrounded page.
+    const overdue = deps.now() - startedAt > timeoutMs * 1.5;
+    if (handedOff || deps.isHidden() || overdue) return;
+
     deps.navigate(url);
   }, timeoutMs);
 

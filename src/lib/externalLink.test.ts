@@ -60,7 +60,7 @@ function harness({ hidden = false }: { hidden?: boolean } = {}) {
   const listeners = new Map<string, Set<() => void>>();
   let timer: (() => void) | null = null;
   let timerMs: number | null = null;
-  const state = { hidden };
+  const state = { hidden, clock: 1_000_000 };
 
   return {
     navigated,
@@ -68,14 +68,15 @@ function harness({ hidden = false }: { hidden?: boolean } = {}) {
     get timerMs() {
       return timerMs;
     },
-    /** Run whatever was scheduled, as if the timeout elapsed. */
-    fireTimer() {
+    /** Run whatever was scheduled, as if `elapsed` ms had passed. */
+    fireTimer(elapsed = timerMs ?? 0) {
+      state.clock += elapsed;
       timer?.();
     },
-    /** Simulate iOS bringing Safari to the front. */
-    background() {
+    /** Simulate iOS bringing another app to the front, via one specific event. */
+    background(event = "visibilitychange") {
       state.hidden = true;
-      for (const handler of listeners.get("visibilitychange") ?? []) handler();
+      for (const handler of listeners.get(event) ?? []) handler();
     },
     deps: {
       navigate: (url: string) => navigated.push(url),
@@ -91,6 +92,7 @@ function harness({ hidden = false }: { hidden?: boolean } = {}) {
         timer = fn;
         timerMs = ms;
       },
+      now: () => state.clock,
     },
   };
 }
@@ -113,17 +115,21 @@ describe("requestSafariHandoff", () => {
     ]);
   });
 
-  it("does not double-navigate once Safari has taken over", () => {
-    const h = harness();
-    requestSafariHandoff("https://jellyfin.example.com", h.deps);
-    h.background();
-    h.fireTimer();
-    expect(h.navigated).toEqual(["x-safari-https://jellyfin.example.com"]);
-  });
+  // The bug this suite exists for: Safari really did open, but the fallback
+  // fired anyway and left an in-app browser window behind it. Any one of these
+  // signals on its own has to be enough to suppress it.
+  it.each(["visibilitychange", "pagehide", "blur"])(
+    "does not double-navigate when %s says another app took over",
+    (event) => {
+      const h = harness();
+      requestSafariHandoff("https://jellyfin.example.com", h.deps);
+      h.background(event);
+      h.fireTimer();
+      expect(h.navigated).toEqual(["x-safari-https://jellyfin.example.com"]);
+    }
+  );
 
-  it("catches a handoff even if the event was missed", () => {
-    // Backgrounding without the listener firing still counts, so a slow or
-    // swallowed visibilitychange can't cause a second navigation.
+  it("catches a handoff even if no event fired at all", () => {
     const h = harness();
     requestSafariHandoff("https://jellyfin.example.com", h.deps);
     h.state.hidden = true;
@@ -131,12 +137,34 @@ describe("requestSafariHandoff", () => {
     expect(h.navigated).toEqual(["x-safari-https://jellyfin.example.com"]);
   });
 
-  it("drops its listeners once it has decided", () => {
+  it("treats a badly overdue timer as evidence of a handoff", () => {
+    // iOS throttles timers in backgrounded pages, so a timer that comes due
+    // long after it was set means the app was backgrounded — even if the events
+    // never arrived and the page is visible again by the time it runs.
+    const h = harness();
+    requestSafariHandoff("https://jellyfin.example.com", h.deps);
+    h.fireTimer(30_000);
+    expect(h.navigated).toEqual(["x-safari-https://jellyfin.example.com"]);
+  });
+
+  it("still falls back when the timer is merely a little late", () => {
+    // Ordinary jitter must not be mistaken for throttling, or the fallback
+    // would never fire on a genuinely unsupported device.
+    const h = harness();
+    requestSafariHandoff("https://jellyfin.example.com", h.deps, 1000);
+    h.fireTimer(1200);
+    expect(h.navigated).toEqual([
+      "x-safari-https://jellyfin.example.com",
+      "https://jellyfin.example.com",
+    ]);
+  });
+
+  it("drops all of its listeners once it has decided", () => {
     const h = harness();
     const remove = vi.spyOn(h.deps, "removeListener");
     requestSafariHandoff("https://jellyfin.example.com", h.deps);
     h.fireTimer();
-    expect(remove).toHaveBeenCalledTimes(2);
+    expect(remove).toHaveBeenCalledTimes(3);
   });
 
   it("navigates straight to anything not eligible for the escape", () => {

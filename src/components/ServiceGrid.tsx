@@ -10,19 +10,27 @@ import type { ServiceKind } from "@/lib/db/schema";
 import { isIosStandalone, isPlainClick, requestSafariHandoff } from "@/lib/externalLink";
 import { cn } from "@/lib/utils";
 
-/** The real browser, wired into the injectable seams requestSafariHandoff takes. */
+/**
+ * The real browser, wired into the injectable seams requestSafariHandoff takes.
+ *
+ * Listeners go on `window` rather than `document` because one of the three
+ * handoff signals is `blur`, which is fired at the window and does not bubble.
+ * The other two still arrive: `visibilitychange` is fired at the document but
+ * bubbles, and `pagehide` is a window event already.
+ */
 const browserHandoff = {
   navigate: (url: string) => {
     window.location.href = url;
   },
   isHidden: () => document.hidden,
   addListener: (type: string, handler: () => void) =>
-    document.addEventListener(type, handler, { once: true }),
+    window.addEventListener(type, handler, { once: true }),
   removeListener: (type: string, handler: () => void) =>
-    document.removeEventListener(type, handler),
+    window.removeEventListener(type, handler),
   setTimer: (fn: () => void, ms: number) => {
     window.setTimeout(fn, ms);
   },
+  now: () => Date.now(),
 };
 
 /**
