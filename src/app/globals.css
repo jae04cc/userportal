@@ -5,6 +5,15 @@
 @layer base {
   html {
     color-scheme: dark;
+
+    /* Kills the double-tap-to-zoom gesture while leaving panning and scrolling
+       alone. This is the part iOS Safari honours — it ignores user-scalable=no
+       in the viewport meta, so that alone would have changed nothing there. */
+    touch-action: manipulation;
+
+    /* Stop iOS inflating text of its own accord when the device is rotated. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   body {
@@ -40,6 +49,22 @@
   td,
   dd {
     user-select: text;
+  }
+
+  /* The other half of "don't zoom" on iOS: Safari zooms the whole page in when
+     you focus a form control whose text is under 16px, and never zooms back
+     out. The admin forms are all 14px, which is exactly the trigger.
+
+     !important because the size comes from a Tailwind utility class, which
+     would otherwise win on specificity. Scoped to coarse pointers so the
+     denser type is kept on desktop, where no such zoom exists. Checkboxes and
+     radios are left out — they have no text and iOS doesn't zoom for them. */
+  @media (pointer: coarse) {
+    input:not([type="checkbox"]):not([type="radio"]),
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
   }
 
   /* Hide scrollbar chrome everywhere, without disabling scrolling.

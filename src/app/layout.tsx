@@ -57,6 +57,13 @@ export async function generateViewport(): Promise<Viewport> {
   return {
     width: "device-width",
     initialScale: 1,
+    // The portal is meant to feel like an app, not a document: pinching and
+    // double-tapping while scrolling a grid of cards zoomed far more often by
+    // accident than on purpose. Note this is only half the story — iOS Safari
+    // ignores userScalable, so the behaviours it does honour (double-tap zoom
+    // and the auto-zoom on focusing a small input) are handled in globals.css.
+    maximumScale: 1,
+    userScalable: false,
     themeColor: identity.accent,
   };
 }
