@@ -1,7 +1,5 @@
 import { Canvas, hexToRgb } from "@/lib/png";
-import type { PortalIdentity } from "@/lib/settings";
-
-const BACKGROUND = "#0b0f14";
+import { SURFACE_BASE, type PortalIdentity } from "@/lib/identity";
 
 /**
  * The app icon: a 2x2 grid of rounded squares in the portal's accent colour,
@@ -23,7 +21,7 @@ export function renderPortalIcon(
 ): Buffer {
   const canvas = new Canvas(size, size);
   // Full bleed, so a maskable crop never exposes transparency.
-  canvas.fill(hexToRgb(BACKGROUND));
+  canvas.fill(hexToRgb(SURFACE_BASE));
 
   const accent = hexToRgb(identity.accent);
 

@@ -64,7 +64,7 @@ export async function generateViewport(): Promise<Viewport> {
     // and the auto-zoom on focusing a small input) are handled in globals.css.
     maximumScale: 1,
     userScalable: false,
-    themeColor: identity.accent,
+    themeColor: identity.themeColor,
   };
 }
 

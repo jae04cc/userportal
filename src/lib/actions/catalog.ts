@@ -68,15 +68,18 @@ export async function updateIdentity(form: FormData) {
   if (!name) return;
   // Interpolated into generated images and the manifest — only plain hex.
   if (!/^#[0-9a-f]{6}$/i.test(accent)) return;
+  // Anything other than the one opt-in value means the app's own background.
+  const themeSource = str(form, "portalThemeSource") === "accent" ? "accent" : "surface";
 
   await setSetting(SETTING_KEYS.portalName, name);
   await setSetting(SETTING_KEYS.portalAccent, accent);
+  await setSetting(SETTING_KEYS.portalThemeSource, themeSource);
 
   await recordAudit({
     actor,
     action: "update",
     entityType: "motd",
-    summary: `Set portal name to "${name}" with accent ${accent}`,
+    summary: `Set portal name to "${name}" with accent ${accent} (window colour: ${themeSource})`,
   });
   refresh();
 }

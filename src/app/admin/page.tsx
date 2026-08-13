@@ -42,7 +42,7 @@ export default async function AdminMotdPage() {
             />
           </Field>
 
-          <Field label="Icon accent" htmlFor="portalAccent">
+          <Field label="Icon accent" htmlFor="portalAccent" hint="Colours the generated app icon.">
             <select
               id="portalAccent"
               name="portalAccent"
@@ -57,6 +57,24 @@ export default async function AdminMotdPage() {
             </select>
           </Field>
 
+          <div className="sm:col-span-2">
+            <Field
+              label="Window colour"
+              htmlFor="portalThemeSource"
+              hint="Once installed as an app, this is the title bar on Windows and the status bar on Android. Matching the background makes the window chrome disappear into the page; the accent makes a dev install obvious at a glance."
+            >
+              <select
+                id="portalThemeSource"
+                name="portalThemeSource"
+                defaultValue={identity.themeSource}
+                className={inputClass}
+              >
+                <option value="surface">Match the app background</option>
+                <option value="accent">Match the icon accent</option>
+              </select>
+            </Field>
+          </div>
+
           <div className="flex items-center gap-3 sm:col-span-2">
             {/* The actual generated icon, not a mock-up of it. */}
             <img
@@ -68,9 +86,9 @@ export default async function AdminMotdPage() {
             <span className="text-xs text-slate-600">
               The current app icon
               {iconOverrides.app ? " — currently your uploaded logo, so the accent above no longer affects it" : ""}
-              . Save first to see a change here — and reinstall the app on your phone
-              afterwards, since the home-screen icon is copied at install time and won&apos;t
-              update on its own.
+              . Save first to see a change here. Anywhere the portal is already installed as an app
+              you will need to reinstall it afterwards — the icon and the window colour are both
+              copied at install time and won&apos;t update on their own.
             </span>
           </div>
         </SaveForm>

@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { getPortalIdentity } from "@/lib/settings";
+import { getPortalIdentity, SURFACE_BASE } from "@/lib/settings";
 import { getIconOverrides } from "@/lib/branding";
 
 export const dynamic = "force-dynamic";
@@ -23,8 +23,12 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     start_url: "/",
     scope: "/",
     display: "standalone",
-    background_color: "#0b0f14",
-    theme_color: identity.accent,
+    background_color: SURFACE_BASE,
+    // Not the accent by default. This is what an installed app paints its
+    // window chrome with — the title bar on Windows, the status bar on Android
+    // — so it matches the page background and the chrome disappears into the
+    // app. Switchable to the accent for anyone who wants dev to stand out.
+    theme_color: identity.themeColor,
     icons: logo
       ? [
           // An uploaded logo is served verbatim, so it is declared at its real

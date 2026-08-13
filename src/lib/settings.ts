@@ -1,4 +1,5 @@
 import "server-only";
+import { resolveIdentity, type PortalIdentity } from "@/lib/identity";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { appSettings } from "@/lib/db/schema";
@@ -26,6 +27,8 @@ export const SETTING_KEYS = {
   portalName: "portal_name",
   /** Icon accent colour — the fastest way to tell two installs apart. */
   portalAccent: "portal_accent",
+  /** Where the window/status bar colour comes from: "surface" | "accent". */
+  portalThemeSource: "portal_theme_source",
   /** Uploaded square logo. Reused as the favicon and app icon. */
   portalLogo: "portal_logo",
   /** Whether that logo is ALSO drawn beside the greeting. Icon slots ignore this. */
@@ -212,42 +215,30 @@ export async function getPublicUrl(): Promise<string | null> {
   }
 }
 
-export type PortalIdentity = { name: string; accent: string };
-
-/** Preset accents, so two installs are distinguishable at a glance on a home screen. */
-export const ACCENT_PRESETS = [
-  { value: "#38bdf8", label: "Sky" },
-  { value: "#34d399", label: "Green" },
-  { value: "#a78bfa", label: "Violet" },
-  { value: "#fb923c", label: "Orange" },
-  { value: "#f472b6", label: "Pink" },
-  { value: "#facc15", label: "Yellow" },
-  { value: "#f87171", label: "Red" },
-  { value: "#94a3b8", label: "Slate" },
-] as const;
-
-const DEFAULT_ACCENT = "#38bdf8";
+// Re-exported so callers have one place to reach for identity, even though the
+// pure half lives outside this server-only module to stay testable.
+export { ACCENT_PRESETS, SURFACE_BASE, resolveIdentity } from "@/lib/identity";
+export type { PortalIdentity, ThemeSource } from "@/lib/identity";
 
 export async function getPortalIdentity(): Promise<PortalIdentity> {
-  let saved: Record<string, string> = {};
-
   try {
-    saved = await getSettings([SETTING_KEYS.portalName, SETTING_KEYS.portalAccent]);
+    const saved = await getSettings([
+      SETTING_KEYS.portalName,
+      SETTING_KEYS.portalAccent,
+      SETTING_KEYS.portalThemeSource,
+    ]);
+    return resolveIdentity({
+      name: saved[SETTING_KEYS.portalName],
+      accent: saved[SETTING_KEYS.portalAccent],
+      themeSource: saved[SETTING_KEYS.portalThemeSource],
+    });
   } catch {
     // The root layout reads this for every page's metadata, including the
     // statically generated /_not-found — which runs at BUILD time, where there
     // is no database. Branding is not worth failing a build (or a request) for;
     // fall back to the defaults.
-    return { name: "Portal", accent: DEFAULT_ACCENT };
+    return resolveIdentity({});
   }
-
-  const name = (saved[SETTING_KEYS.portalName] ?? "").trim() || "Portal";
-  const rawAccent = (saved[SETTING_KEYS.portalAccent] ?? "").trim();
-  // Only accept a plain hex colour — this value is interpolated into generated
-  // images and into the manifest.
-  const accent = /^#[0-9a-f]{6}$/i.test(rawAccent) ? rawAccent : DEFAULT_ACCENT;
-
-  return { name, accent };
 }
 
 /**
