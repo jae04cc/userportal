@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { getPortalIdentity } from "@/lib/settings";
 import { getIconOverrides } from "@/lib/branding";
+import { ServiceWorker } from "@/components/ServiceWorker";
 import "./globals.css";
 
 /**
@@ -79,6 +80,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to content
         </a>
         {children}
+        {/* Registers the worker that makes the app installable at all. */}
+        <ServiceWorker />
       </body>
     </html>
   );

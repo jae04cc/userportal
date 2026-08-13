@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/authz";
-import { getBranding } from "@/lib/settings";
+import { getBranding, getPortalIdentity } from "@/lib/settings";
+import { InstallPrompt } from "@/components/InstallPrompt";
 import { PortalBanner } from "@/components/PortalBanner";
 import { PortalBody } from "@/components/PortalBody";
 import { PortalHeader } from "@/components/PortalHeader";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const user = await requireUser();
-  const branding = await getBranding();
+  const [branding, identity] = await Promise.all([getBranding(), getPortalIdentity()]);
 
   return (
     <main id="main" className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
@@ -33,6 +34,10 @@ export default async function HomePage() {
           .
         </p>
       ) : null}
+
+      {/* Below the password warning: a nudge to install must never sit above
+          something the user actually needs to act on. */}
+      <InstallPrompt appName={identity.name} />
 
       <PortalBody viewer={user} />
     </main>

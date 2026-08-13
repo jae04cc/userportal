@@ -37,6 +37,11 @@ ENV UPLOADS_DIR=/data/uploads
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
+# Standalone does NOT bundle public/, it has to be copied in. Without this,
+# /sw.js 404s, no service worker registers, and the browser silently stops
+# offering to install the app — with nothing in any log to say why.
+COPY --from=builder /app/public ./public
+
 # Break-glass recovery. The standalone bundle contains only what the server
 # imports, so without this the documented lockout fix
 #   docker exec userportal node scripts/reset-admin.mjs
