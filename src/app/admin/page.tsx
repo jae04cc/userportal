@@ -6,6 +6,7 @@ import { SaveForm } from "@/components/admin/SaveBar";
 import { getBranding, getKumaConfig, getPortalIdentity, ACCENT_PRESETS } from "@/lib/settings";
 import { getIconOverrides, MIN_ICON_PX } from "@/lib/branding";
 import { UPLOAD_LIMITS } from "@/lib/uploads";
+import { MAX_ICON_PX } from "@/lib/imageScale";
 import { updateBranding, updateIdentity } from "@/lib/actions/catalog";
 import Link from "next/link";
 
@@ -133,12 +134,16 @@ export default async function AdminMotdPage() {
             <p className="mb-3 text-xs text-slate-500">
               A <strong>square PNG of at least {MIN_ICON_PX}px</strong> replaces the browser
               favicon and the installed app icon. It can optionally also sit beside the greeting.
+              Anything larger than {MAX_ICON_PX}px is resized in your browser before it&apos;s
+              stored, and other formats are converted to PNG — an oversized icon costs the install
+              prompt, and this file is served for the favicon on every visit.
             </p>
             <ImageUpload
               name="logo"
               initial={branding.logo}
               label="logo"
               previewClass="h-16 w-16"
+              maxPixels={MAX_ICON_PX}
             />
 
             <label className="mt-3 flex items-start gap-2 text-sm text-slate-400">

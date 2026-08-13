@@ -1,7 +1,107 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { describeRescale, fitWithin, needsRescale, type Size } from "@/lib/imageScale";
 import { cn } from "@/lib/utils";
+
+/**
+ * Re-renders an upload at a sane size before it is stored.
+ *
+ * Done here rather than on the server because the browser already has a decoder
+ * for every format the file input accepts — PNG, JPEG, WebP, GIF and SVG — and
+ * the alternative is a hand-written PNG decoder plus a resampler for one
+ * branding feature.
+ *
+ * It never blocks an upload. Anything that goes wrong — a format the browser
+ * won't decode, an SVG that taints the canvas, a missing 2D context — falls
+ * back to sending the original bytes, which is exactly the old behaviour.
+ */
+type Decoded = {
+  source: CanvasImageSource;
+  size: Size;
+  /** Releases the bitmap or object URL. Only safe to call after drawing. */
+  release: () => void;
+};
+
+/**
+ * Decodes an upload, by whichever route works.
+ *
+ * `createImageBitmap` is tried first: it is the more reliable decoder for raster
+ * formats and doesn't need the image attached to a document. It does not handle
+ * SVG, so `<img>` is the fallback — that path covers SVG but is fussier, and in
+ * some browsers refuses files createImageBitmap accepts happily.
+ */
+async function decode(file: File): Promise<Decoded | null> {
+  if (typeof createImageBitmap === "function") {
+    try {
+      const bitmap = await createImageBitmap(file);
+      return {
+        source: bitmap,
+        size: { width: bitmap.width, height: bitmap.height },
+        release: () => bitmap.close(),
+      };
+    } catch {
+      // Most likely an SVG. Fall through to the <img> path.
+    }
+  }
+
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    // An SVG with no intrinsic size reports 0 and can't be scaled meaningfully.
+    if (!img.naturalWidth || !img.naturalHeight) {
+      URL.revokeObjectURL(url);
+      return null;
+    }
+    return {
+      source: img,
+      size: { width: img.naturalWidth, height: img.naturalHeight },
+      release: () => URL.revokeObjectURL(url),
+    };
+  } catch {
+    URL.revokeObjectURL(url);
+    return null;
+  }
+}
+
+async function rescale(file: File, max: number): Promise<{ file: File; note: string | null }> {
+  const decoded = await decode(file);
+  if (!decoded) return { file, note: null };
+
+  try {
+    const from = decoded.size;
+    if (!needsRescale({ size: from, type: file.type }, max)) {
+      return { file, note: describeRescale(from, from, false) };
+    }
+
+    const to = fitWithin(from, max);
+    const canvas = document.createElement("canvas");
+    canvas.width = to.width;
+    canvas.height = to.height;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return { file, note: null };
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(decoded.source, 0, 0, to.width, to.height);
+
+    // Throws a SecurityError if an SVG tainted the canvas, caught below.
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) return { file, note: null };
+
+    const name = file.name.replace(/\.[^.]+$/, "") + ".png";
+    return {
+      file: new File([blob], name, { type: "image/png" }),
+      note: describeRescale(from, to, file.type !== "image/png"),
+    };
+  } catch {
+    return { file, note: null };
+  } finally {
+    decoded.release();
+  }
+}
 
 /**
  * Uploads an image and writes the resulting `/api/icons/…` path into a hidden
@@ -20,21 +120,33 @@ export function ImageUpload({
   label,
   /** Tailwind classes for the preview box — banners and logos are shaped differently. */
   previewClass,
+  /**
+   * Longest side to store, in pixels. Set for artwork that ends up in an icon
+   * slot; left unset for the banner, where the full resolution is the point.
+   */
+  maxPixels,
 }: {
   name: string;
   initial: string | null;
   label: string;
   previewClass: string;
+  maxPixels?: number;
 }) {
   const [value, setValue] = useState(initial ?? "");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  async function upload(file: File) {
+  async function upload(picked: File) {
     setUploading(true);
     setError(null);
+    setNote(null);
     try {
+      const { file, note: what } = maxPixels
+        ? await rescale(picked, maxPixels)
+        : { file: picked, note: null };
+
       const body = new FormData();
       body.append("file", file);
       // Branding artwork gets the larger size limit.
@@ -46,6 +158,7 @@ export function ImageUpload({
         return;
       }
       setValue(json.url);
+      setNote(what);
     } catch {
       setError("Upload failed.");
     } finally {
@@ -112,6 +225,12 @@ export function ImageUpload({
       {error ? (
         <p role="alert" className="mt-2 text-sm text-red-300">
           {error}
+        </p>
+      ) : null}
+
+      {note ? (
+        <p role="status" className="mt-2 text-xs text-emerald-400">
+          {note}
         </p>
       ) : null}
 
