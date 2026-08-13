@@ -7,7 +7,23 @@ import { ServiceModal } from "./ServiceModal";
 import { cardStyle, type CardLayouts, type CardStyle } from "./cardStyles";
 import { UNKNOWN, type MonitorHealth } from "@/lib/status/types";
 import type { ServiceKind } from "@/lib/db/schema";
+import { isIosStandalone, isPlainClick, requestSafariHandoff } from "@/lib/externalLink";
 import { cn } from "@/lib/utils";
+
+/** The real browser, wired into the injectable seams requestSafariHandoff takes. */
+const browserHandoff = {
+  navigate: (url: string) => {
+    window.location.href = url;
+  },
+  isHidden: () => document.hidden,
+  addListener: (type: string, handler: () => void) =>
+    document.addEventListener(type, handler, { once: true }),
+  removeListener: (type: string, handler: () => void) =>
+    document.removeEventListener(type, handler),
+  setTimer: (fn: () => void, ms: number) => {
+    window.setTimeout(fn, ms);
+  },
+};
 
 /**
  * Client-side shape only. Three deliberate choices:
@@ -176,6 +192,21 @@ function ServiceCard({
       href={service.url}
       target={isExternal ? "_blank" : undefined}
       rel={isExternal ? "noopener noreferrer" : undefined}
+      /**
+       * Only does anything inside an iOS Home Screen web app, where
+       * target="_blank" opens an in-app browser with its own cookie jar rather
+       * than reaching Safari. Everywhere else this returns immediately and the
+       * link behaves exactly as it always has. See src/lib/externalLink.ts.
+       */
+      onClick={
+        isExternal
+          ? (event) => {
+              if (!isPlainClick(event) || !isIosStandalone()) return;
+              event.preventDefault();
+              requestSafariHandoff(service.url, browserHandoff);
+            }
+          : undefined
+      }
       // Status stays in the accessible name, since the visible word is gone.
       aria-label={label}
       className={shell}
