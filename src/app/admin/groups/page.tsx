@@ -2,6 +2,7 @@ import { asc, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { groups, userGroups } from "@/lib/db/schema";
 import { Button, Field, Panel, inputClass } from "@/components/admin/ui";
+import { SaveForm } from "@/components/admin/SaveBar";
 import { createGroup, deleteGroup, updateGroup } from "@/lib/actions/people";
 import { getOidcConfig } from "@/lib/settings";
 
@@ -78,7 +79,11 @@ export default async function AdminGroupsPage() {
                 key={group.id}
                 className="rounded-md border border-surface-border bg-surface-base p-3"
               >
-                <form action={updateGroup} className="grid gap-3 sm:grid-cols-2">
+                <SaveForm
+                  action={updateGroup}
+                  label={`Group “${group.name}”`}
+                  className="grid gap-3 sm:grid-cols-2"
+                >
                   <input type="hidden" name="id" value={group.id} />
                   <Field label="Name" htmlFor={`group-name-${group.id}`}>
                     <input
@@ -96,14 +101,11 @@ export default async function AdminGroupsPage() {
                       className={inputClass}
                     />
                   </Field>
-                  <div className="flex items-center gap-3 sm:col-span-2">
-                    <Button type="submit">Save</Button>
-                    <span className="text-xs text-slate-600">
-                      {countByGroup.get(group.id) ?? 0} member
-                      {(countByGroup.get(group.id) ?? 0) === 1 ? "" : "s"}
-                    </span>
-                  </div>
-                </form>
+                  <span className="text-xs text-slate-600 sm:col-span-2">
+                    {countByGroup.get(group.id) ?? 0} member
+                    {(countByGroup.get(group.id) ?? 0) === 1 ? "" : "s"}
+                  </span>
+                </SaveForm>
 
                 <form action={deleteGroup} className="mt-2">
                   <input type="hidden" name="id" value={group.id} />

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { categories, groups, services, serviceGroups } from "@/lib/db/schema";
 import { Button, Field, Panel, inputClass } from "@/components/admin/ui";
 import { ServiceForm } from "@/components/admin/ServiceForm";
+import { SaveForm } from "@/components/admin/SaveBar";
 import { getServiceCardLayouts } from "@/lib/settings";
 import {
   createCategory,
@@ -46,7 +47,7 @@ export default async function AdminServicesPage() {
         title="Card layout"
         description="How service cards are arranged on the landing page, on every screen size."
       >
-        <form action={setCardLayout} className="grid gap-3 sm:grid-cols-2">
+        <SaveForm action={setCardLayout} label="Card layout" className="grid gap-3 sm:grid-cols-2">
           <Field label="On phones" htmlFor="layout-mobile" hint="Below 640px wide.">
             <select
               id="layout-mobile"
@@ -71,16 +72,11 @@ export default async function AdminServicesPage() {
             </select>
           </Field>
 
-          <div className="sm:col-span-2">
-            <Button type="submit" variant="primary">
-              Save layout
-            </Button>
-            <p className="mt-2 text-xs text-slate-600">
-              Descriptions only appear in the detailed layout — there&apos;s no room for them in
-              compact tiles.
-            </p>
-          </div>
-        </form>
+          <p className="text-xs text-slate-600 sm:col-span-2">
+            Descriptions only appear in the detailed layout — there&apos;s no room for them in
+            compact tiles.
+          </p>
+        </SaveForm>
       </Panel>
 
       <Panel title="Add a category" description="Categories are the headings service cards sit under.">
@@ -110,7 +106,11 @@ export default async function AdminServicesPage() {
             <div className="mb-5 flex flex-wrap items-end gap-2">
               {/* Rename sits first and is labelled, since "where do I rename a
                   category" was the first thing that wasn't findable. */}
-              <form action={renameCategory} className="flex flex-wrap items-end gap-2">
+              <SaveForm
+                action={renameCategory}
+                label={`Category “${category.name}”`}
+                className="flex flex-wrap items-end gap-2"
+              >
                 <input type="hidden" name="id" value={category.id} />
                 <div className="min-w-52">
                   <Field label="Category name" htmlFor={`rename-${category.id}`}>
@@ -139,10 +139,7 @@ export default async function AdminServicesPage() {
                     </select>
                   </Field>
                 </div>
-                <Button type="submit" variant="primary">
-                  Save
-                </Button>
-              </form>
+              </SaveForm>
 
               <form action={moveCategory}>
                 <input type="hidden" name="id" value={category.id} />
@@ -240,7 +237,6 @@ export default async function AdminServicesPage() {
                         action={updateService}
                         categories={allCategories}
                         groups={groupOptions}
-                        submitLabel="Save changes"
                         initial={{
                           id: service.id,
                           categoryId: service.categoryId,

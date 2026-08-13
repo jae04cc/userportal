@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { SaveForm } from "./SaveBar";
 import { Button, Field, inputClass } from "./ui";
 import { IconPicker } from "./IconPicker";
 import type { ServiceKind, ServiceVisibility } from "@/lib/db/schema";
@@ -26,6 +27,11 @@ export type ServiceFormValues = {
  * Shared by both create and edit. The group checkbox list is only meaningful
  * when visibility is "groups", so it's revealed conditionally — the value is
  * still submitted and the server ignores it for other modes.
+ *
+ * `submitLabel` decides which of the two it is. With one, the form stands alone
+ * and keeps its own button — creating a service is a command, not a setting, so
+ * it shouldn't fire because the page's Save was pressed for something else.
+ * Without one, the form is an edit and saves through the page's floating Save.
  */
 export function ServiceForm({
   action,
@@ -38,15 +44,35 @@ export function ServiceForm({
   categories: Array<{ id: string; name: string }>;
   groups: GroupOption[];
   initial: ServiceFormValues;
-  submitLabel: string;
+  submitLabel?: string;
 }) {
   const [visibility, setVisibility] = useState<ServiceVisibility>(initial.visibility);
   const [kind, setKind] = useState<ServiceKind>(initial.kind);
   const uid = initial.id ?? "new";
   const isLink = kind === "link";
 
-  return (
-    <form action={action} className="grid gap-3 sm:grid-cols-2">
+  const wrap = (children: ReactNode) =>
+    submitLabel ? (
+      <form action={action} className="grid gap-3 sm:grid-cols-2">
+        {children}
+        <div className="sm:col-span-2">
+          <Button type="submit" variant="primary">
+            {submitLabel}
+          </Button>
+        </div>
+      </form>
+    ) : (
+      <SaveForm
+        action={action}
+        label={initial.name || "Service"}
+        className="grid gap-3 sm:grid-cols-2"
+      >
+        {children}
+      </SaveForm>
+    );
+
+  return wrap(
+    <>
       {initial.id ? <input type="hidden" name="id" value={initial.id} /> : null}
 
       <Field label="Name" htmlFor={`name-${uid}`}>
@@ -215,12 +241,6 @@ export function ServiceForm({
           )}
         </fieldset>
       ) : null}
-
-      <div className="sm:col-span-2">
-        <Button type="submit" variant="primary">
-          {submitLabel}
-        </Button>
-      </div>
-    </form>
+    </>
   );
 }

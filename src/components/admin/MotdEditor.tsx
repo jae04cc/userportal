@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { updateMotd } from "@/lib/actions/catalog";
 import { Motd } from "@/components/Motd";
-import { Button, inputClass } from "./ui";
+import { SaveForm } from "./SaveBar";
+import { inputClass } from "./ui";
 
 /**
  * Markdown textarea with a live preview rendered by the exact same <Motd>
@@ -13,7 +14,7 @@ export function MotdEditor({ initial }: { initial: string }) {
   const [value, setValue] = useState(initial);
 
   return (
-    <form action={updateMotd} className="space-y-4">
+    <SaveForm action={updateMotd} label="Announcement" className="space-y-4">
       <div>
         <label htmlFor="motd" className="mb-1 block text-sm text-slate-400">
           Announcement (markdown)
@@ -45,10 +46,6 @@ export function MotdEditor({ initial }: { initial: string }) {
           </p>
         )}
       </div>
-
-      <Button type="submit" variant="primary">
-        Save announcement
-      </Button>
-    </form>
+    </SaveForm>
   );
 }

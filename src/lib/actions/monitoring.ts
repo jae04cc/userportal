@@ -21,7 +21,17 @@ function str(form: FormData, key: string): string {
   return String(form.get(key) ?? "").trim();
 }
 
-export type ActionResult = { ok: boolean; message: string };
+export type ActionResult = {
+  ok: boolean;
+  message: string;
+  /**
+   * Whether the settings reached the database, which is not the same question
+   * as `ok`. Saving here also runs a live connection test, and a test that
+   * fails is a warning about the far end, not a rejected save — the caller
+   * needs to tell those apart to know whether the form still has unsaved edits.
+   */
+  saved?: boolean;
+};
 
 /**
  * Saves the Uptime Kuma connection settings into the database, so monitoring can
@@ -78,6 +88,7 @@ export async function saveKumaSettings(
   const result = await new KumaStatusProvider(baseUrl, slug).test();
   return {
     ok: result.ok,
+    saved: true,
     message: result.ok ? `Saved. ${result.message}` : `Saved, but: ${result.message}`,
   };
 }

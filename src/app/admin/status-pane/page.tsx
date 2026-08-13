@@ -4,6 +4,7 @@ import { groups, statusItems, statusItemGroups } from "@/lib/db/schema";
 import { Button, Field, Panel, inputClass } from "@/components/admin/ui";
 import { StatusItemForm } from "@/components/admin/StatusItemForm";
 import { StatusPaneImport } from "@/components/admin/StatusPaneImport";
+import { SaveForm } from "@/components/admin/SaveBar";
 import {
   createStatusItem,
   deleteStatusItem,
@@ -58,7 +59,7 @@ export default async function AdminStatusPanePage() {
         title="Status pane"
         description="A slim strip of tiles above the message of the day. Each tile is one Uptime Kuma monitor, with a heartbeat strip of its recent checks."
       >
-        <form action={setPaneLayout} className="grid gap-3 sm:grid-cols-2">
+        <SaveForm action={setPaneLayout} label="Status pane layout" className="grid gap-3 sm:grid-cols-2">
           <Field
             label="Columns"
             htmlFor="pane-columns"
@@ -107,13 +108,7 @@ export default async function AdminStatusPanePage() {
               <span className="text-xs text-slate-600">(wide screens only)</span>
             </label>
           </div>
-
-          <div className="sm:col-span-2">
-            <Button type="submit" variant="primary">
-              Save layout
-            </Button>
-          </div>
-        </form>
+        </SaveForm>
       </Panel>
 
       {kuma.configured ? (
@@ -196,7 +191,6 @@ export default async function AdminStatusPanePage() {
                       action={updateStatusItem}
                       groups={groupOptions}
                       monitors={monitorOptions}
-                      submitLabel="Save changes"
                       initial={{
                         id: item.id,
                         label: item.label,

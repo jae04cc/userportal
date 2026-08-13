@@ -1,7 +1,8 @@
 import { getMotd } from "@/lib/services";
 import { MotdEditor } from "@/components/admin/MotdEditor";
 import { ImageUpload } from "@/components/admin/ImageUpload";
-import { Button, Field, Panel, inputClass } from "@/components/admin/ui";
+import { Field, Panel, inputClass } from "@/components/admin/ui";
+import { SaveForm } from "@/components/admin/SaveBar";
 import { getBranding, getKumaConfig, getPortalIdentity, ACCENT_PRESETS } from "@/lib/settings";
 import { getIconOverrides, MIN_ICON_PX } from "@/lib/branding";
 import { UPLOAD_LIMITS } from "@/lib/uploads";
@@ -25,7 +26,7 @@ export default async function AdminMotdPage() {
         title="Portal identity"
         description="Sets the browser title, the home-screen name, and the generated app icon. Give a dev install a different name and colour so the two are distinguishable once installed."
       >
-        <form action={updateIdentity} className="grid gap-3 sm:grid-cols-2">
+        <SaveForm action={updateIdentity} label="Portal identity" className="grid gap-3 sm:grid-cols-2">
           <Field
             label="Portal name"
             htmlFor="portalName"
@@ -72,20 +73,14 @@ export default async function AdminMotdPage() {
               update on its own.
             </span>
           </div>
-
-          <div className="sm:col-span-2">
-            <Button type="submit" variant="primary">
-              Save identity
-            </Button>
-          </div>
-        </form>
+        </SaveForm>
       </Panel>
 
       <Panel
         title="Branding"
         description="Artwork shown at the top of the landing page. Both are optional — with neither set the portal shows just the greeting, exactly as before."
       >
-        <form action={updateBranding} className="space-y-5">
+        <SaveForm action={updateBranding} label="Branding" className="space-y-5">
           <div>
             <h3 className="mb-1 text-sm font-medium text-slate-300">Banner</h3>
             <p className="mb-3 text-xs text-slate-500">
@@ -154,11 +149,7 @@ export default async function AdminMotdPage() {
                     "px on both sides, so the generated icon is still used there."}
             </p>
           </div>
-
-          <Button type="submit" variant="primary">
-            Save branding
-          </Button>
-        </form>
+        </SaveForm>
       </Panel>
 
       <Panel

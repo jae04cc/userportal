@@ -1,17 +1,8 @@
 "use client";
 
-import { useFormState, useFormStatus } from "react-dom";
-import { saveKumaSettings, type ActionResult } from "@/lib/actions/monitoring";
-import { Button, Field, inputClass } from "./ui";
-
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" variant="primary" disabled={pending}>
-      {pending ? "Saving and testing…" : "Save and test connection"}
-    </Button>
-  );
-}
+import { saveKumaSettings } from "@/lib/actions/monitoring";
+import { SaveForm } from "./SaveBar";
+import { Field, inputClass } from "./ui";
 
 export function KumaSettingsForm({
   baseUrl,
@@ -22,10 +13,15 @@ export function KumaSettingsForm({
   slug: string;
   showUptime: boolean;
 }) {
-  const [state, formAction] = useFormState<ActionResult | null, FormData>(saveKumaSettings, null);
-
   return (
-    <form action={formAction} className="grid gap-3 sm:grid-cols-2">
+    // The action is written for useFormState, so it takes a previous-state
+    // argument this form has no use for. The connection test it runs comes back
+    // as a message and is reported by the save bar.
+    <SaveForm
+      action={(form) => saveKumaSettings(null, form)}
+      label="Uptime Kuma connection"
+      className="grid gap-3 sm:grid-cols-2"
+    >
       <Field
         label="Uptime Kuma base URL"
         htmlFor="kuma-base"
@@ -59,25 +55,10 @@ export function KumaSettingsForm({
         Show 24-hour uptime percentage on service cards
       </label>
 
-      {state ? (
-        <p
-          role="status"
-          className={`sm:col-span-2 rounded-md border px-3 py-2 text-sm ${
-            state.ok
-              ? "border-emerald-900 bg-emerald-950/40 text-emerald-300"
-              : "border-amber-900 bg-amber-950/40 text-amber-300"
-          }`}
-        >
-          {state.message}
-        </p>
-      ) : null}
-
-      <div className="sm:col-span-2">
-        <SubmitButton />
-        <p className="mt-2 text-xs text-slate-600">
-          Clear both fields and save to turn monitoring off entirely.
-        </p>
-      </div>
-    </form>
+      <p className="text-xs text-slate-600 sm:col-span-2">
+        Saving also tests the connection and reports what it found. Clear both fields and save to
+        turn monitoring off entirely.
+      </p>
+    </SaveForm>
   );
 }

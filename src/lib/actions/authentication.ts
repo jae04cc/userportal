@@ -15,7 +15,17 @@ import {
   DEFAULT_SESSION_MAX_AGE,
 } from "@/lib/settings";
 
-export type ActionResult = { ok: boolean; message: string };
+export type ActionResult = {
+  ok: boolean;
+  message: string;
+  /**
+   * Whether the settings reached the database. Saving also probes the issuer,
+   * and a probe that fails is a warning about the identity provider rather than
+   * a rejected save — the caller needs to tell those apart to know whether the
+   * form still has unsaved edits.
+   */
+  saved?: boolean;
+};
 
 function refresh() {
   revalidatePath("/");
@@ -131,10 +141,11 @@ export async function saveOidcSettings(
   refresh();
 
   const probe = await probeIssuer(issuer);
-  if (!probe.ok) return { ok: false, message: `Saved, but: ${probe.message}` };
+  if (!probe.ok) return { ok: false, saved: true, message: `Saved, but: ${probe.message}` };
 
   return {
     ok: true,
+    saved: true,
     message:
       `Saved. ${probe.message}` +
       (adminGroup ? "" : " No admin group is set, so no SSO user will be an admin yet."),

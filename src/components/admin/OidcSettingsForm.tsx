@@ -1,17 +1,8 @@
 "use client";
 
-import { useFormState, useFormStatus } from "react-dom";
-import { saveOidcSettings, type ActionResult } from "@/lib/actions/authentication";
-import { Button, Field, inputClass } from "./ui";
-
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" variant="primary" disabled={pending}>
-      {pending ? "Saving and testing…" : "Save and test"}
-    </Button>
-  );
-}
+import { saveOidcSettings } from "@/lib/actions/authentication";
+import { SaveForm } from "./SaveBar";
+import { Field, inputClass } from "./ui";
 
 export function OidcSettingsForm({
   issuer,
@@ -38,10 +29,14 @@ export function OidcSettingsForm({
   callbackUrl: string;
   publicUrl: string;
 }) {
-  const [state, formAction] = useFormState<ActionResult | null, FormData>(saveOidcSettings, null);
-
   return (
-    <form action={formAction} className="grid gap-3 sm:grid-cols-2">
+    // Written for useFormState, hence the unused previous-state argument. The
+    // issuer probe it runs comes back as a message and is reported by the bar.
+    <SaveForm
+      action={(form) => saveOidcSettings(null, form)}
+      label="Single sign-on"
+      className="grid gap-3 sm:grid-cols-2"
+    >
       <div className="sm:col-span-2">
         <Field
           label="Portal public URL"
@@ -176,26 +171,10 @@ export function OidcSettingsForm({
         </select>
       </Field>
 
-      {state ? (
-        <p
-          role="status"
-          className={`sm:col-span-2 rounded-md border px-3 py-2 text-sm ${
-            state.ok
-              ? "border-emerald-900 bg-emerald-950/40 text-emerald-300"
-              : "border-amber-900 bg-amber-950/40 text-amber-300"
-          }`}
-        >
-          {state.message}
-        </p>
-      ) : null}
-
-      <div className="sm:col-span-2">
-        <SubmitButton />
-        <p className="mt-2 text-xs text-slate-600">
-          Clear the issuer and client ID and save to turn single sign-on off. The local bootstrap
-          login always remains available.
-        </p>
-      </div>
-    </form>
+      <p className="text-xs text-slate-600 sm:col-span-2">
+        Saving also probes the issuer and reports what it found. Clear the issuer and client ID and
+        save to turn single sign-on off — the local bootstrap login always remains available.
+      </p>
+    </SaveForm>
   );
 }

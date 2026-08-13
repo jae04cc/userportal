@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/authz";
+import { SaveScope } from "@/components/admin/SaveBar";
 
 // Admin data must never be cached or statically rendered.
 export const dynamic = "force-dynamic";
@@ -23,7 +24,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   await requireAdmin();
 
   return (
-    <main id="main" className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
+    // Bottom padding leaves room for the floating save bar, so the last panel
+    // on a page is never sitting underneath it.
+    <main id="main" className="mx-auto w-full max-w-5xl px-4 pb-28 pt-8 sm:px-6 sm:pt-10">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-slate-100 sm:text-2xl">Admin</h1>
         <Link
@@ -46,7 +49,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         ))}
       </nav>
 
-      {children}
+      {/* Every settings form inside registers with this, and is saved by the
+          one floating button it renders. */}
+      <SaveScope>{children}</SaveScope>
     </main>
   );
 }

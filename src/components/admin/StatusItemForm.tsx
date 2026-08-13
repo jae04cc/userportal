@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { SaveForm } from "./SaveBar";
 import { Button, Field, inputClass } from "./ui";
 import type { ServiceVisibility } from "@/lib/db/schema";
 
@@ -25,13 +26,34 @@ export function StatusItemForm({
   groups: Array<{ id: string; name: string }>;
   monitors: Array<{ id: string; name: string }>;
   initial: StatusItemValues;
-  submitLabel: string;
+  /** Present for the add form, which keeps its own button. See ServiceForm. */
+  submitLabel?: string;
 }) {
   const [visibility, setVisibility] = useState<ServiceVisibility>(initial.visibility);
   const uid = initial.id ?? "new";
 
-  return (
-    <form action={action} className="grid gap-3 sm:grid-cols-2">
+  const wrap = (children: ReactNode) =>
+    submitLabel ? (
+      <form action={action} className="grid gap-3 sm:grid-cols-2">
+        {children}
+        <div className="sm:col-span-2">
+          <Button type="submit" variant="primary">
+            {submitLabel}
+          </Button>
+        </div>
+      </form>
+    ) : (
+      <SaveForm
+        action={action}
+        label={initial.label || "Tile"}
+        className="grid gap-3 sm:grid-cols-2"
+      >
+        {children}
+      </SaveForm>
+    );
+
+  return wrap(
+    <>
       {initial.id ? <input type="hidden" name="id" value={initial.id} /> : null}
 
       <Field label="Label" htmlFor={`label-${uid}`} hint="What the tile is called on the portal.">
@@ -133,12 +155,6 @@ export function StatusItemForm({
           )}
         </fieldset>
       ) : null}
-
-      <div className="sm:col-span-2">
-        <Button type="submit" variant="primary">
-          {submitLabel}
-        </Button>
-      </div>
-    </form>
+    </>
   );
 }

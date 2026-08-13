@@ -2,6 +2,7 @@ import { asc } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { groups, userGroups, users } from "@/lib/db/schema";
 import { Button, Panel } from "@/components/admin/ui";
+import { SaveForm } from "@/components/admin/SaveBar";
 import { deleteUser, setUserActive, setUserPortalGroups } from "@/lib/actions/people";
 import { getOidcConfig } from "@/lib/settings";
 
@@ -103,7 +104,11 @@ export default async function AdminUsersPage() {
                     </p>
                   ) : null}
 
-                  <form action={setUserPortalGroups} className="mb-3">
+                  <SaveForm
+                    action={setUserPortalGroups}
+                    label={`Groups for ${user.username}`}
+                    className="mb-3"
+                  >
                     <input type="hidden" name="userId" value={user.id} />
                     <fieldset>
                       <legend className="mb-1.5 text-xs text-slate-500">
@@ -133,8 +138,7 @@ export default async function AdminUsersPage() {
                         </div>
                       )}
                     </fieldset>
-                    <Button type="submit">Save groups</Button>
-                  </form>
+                  </SaveForm>
 
                   <div className="flex flex-wrap gap-2">
                     <form action={setUserActive}>
