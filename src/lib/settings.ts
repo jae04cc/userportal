@@ -29,6 +29,8 @@ export const SETTING_KEYS = {
   portalAccent: "portal_accent",
   /** Where the window/status bar colour comes from: "surface" | "accent". */
   portalThemeSource: "portal_theme_source",
+  /** Whether signing out also ends the identity provider's session. */
+  oidcSingleLogout: "oidc_single_logout",
   /** Uploaded square logo. Reused as the favicon and app icon. */
   portalLogo: "portal_logo",
   /** Whether that logo is ALSO drawn beside the greeting. Icon slots ignore this. */
@@ -341,6 +343,22 @@ export async function getStatusPaneColumns(): Promise<PaneColumns> {
 
 export async function getStatusPaneCollapseAfter(): Promise<number> {
   return parseCollapseAfter(await getSetting(SETTING_KEYS.statusPaneCollapseAfter));
+}
+
+/**
+ * Whether signing out should also end the identity provider's session.
+ *
+ * Defaults to on. Without it, signing out clears only the portal's cookie and
+ * the next visit walks straight back in through SSO — which reads as the button
+ * not working. Turning it off is for providers that don't support RP-initiated
+ * logout, or where the redirect back hasn't been registered.
+ */
+export async function getSingleLogout(): Promise<boolean> {
+  try {
+    return (await getSetting(SETTING_KEYS.oidcSingleLogout)) !== "false";
+  } catch {
+    return true;
+  }
 }
 
 export async function getSessionMaxAge(): Promise<number> {

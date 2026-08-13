@@ -9,19 +9,22 @@ import {
   getPublicUrl,
   getSetting,
   getSessionMaxAge,
+  getSingleLogout,
   SETTING_KEYS,
 } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminAuthenticationPage() {
-  const [oidc, allGroups, defaultGroupId, sessionMaxAge, publicUrl] = await Promise.all([
-    getOidcConfig(),
-    db.select().from(groups).orderBy(asc(groups.name)),
-    getSetting(SETTING_KEYS.defaultGroupId),
-    getSessionMaxAge(),
-    getPublicUrl(),
-  ]);
+  const [oidc, allGroups, defaultGroupId, sessionMaxAge, publicUrl, singleLogout] =
+    await Promise.all([
+      getOidcConfig(),
+      db.select().from(groups).orderBy(asc(groups.name)),
+      getSetting(SETTING_KEYS.defaultGroupId),
+      getSessionMaxAge(),
+      getPublicUrl(),
+      getSingleLogout(),
+    ]);
 
   // A configured public URL wins, because that is exactly what sign-in will use.
   // Otherwise derive it from the request, which is right whenever the proxy
@@ -49,6 +52,8 @@ export default async function AdminAuthenticationPage() {
           sessionMaxAge={sessionMaxAge}
           groups={allGroups.map((g) => ({ id: g.id, name: g.name }))}
           callbackUrl={callbackUrl}
+          logoutRedirectUrl={`${origin}/logged-out`}
+          singleLogout={singleLogout}
           publicUrl={publicUrl ?? ""}
         />
       </Panel>

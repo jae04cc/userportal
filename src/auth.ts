@@ -270,7 +270,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth(async () => {
       async jwt({ token, user, account, profile }) {
         if (account?.provider === "oidc" && profile?.sub) {
           const row = await db.query.users.findFirst({ where: eq(users.oidcSub, profile.sub) });
-          if (row) token.userId = row.id;
+          if (row) {
+            token.userId = row.id;
+            /**
+             * Stash the ID token for RP-initiated logout.
+             *
+             * It goes to the database rather than into this JWT deliberately:
+             * the session cookie carries only a user id (see the note at the
+             * top of this file), and an ID token is large enough to push the
+             * cookie into being chunked. Keeping it server-side also means
+             * signing out can destroy it.
+             */
+            if (typeof account.id_token === "string") {
+              await db
+                .update(users)
+                .set({ oidcIdToken: account.id_token })
+                .where(eq(users.id, row.id));
+            }
+          }
         } else if (user) {
           token.userId = user.id;
         }

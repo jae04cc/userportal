@@ -15,6 +15,8 @@ export function OidcSettingsForm({
   sessionMaxAge,
   groups,
   callbackUrl,
+  logoutRedirectUrl,
+  singleLogout,
   publicUrl,
 }: {
   issuer: string;
@@ -27,6 +29,8 @@ export function OidcSettingsForm({
   sessionMaxAge: number;
   groups: Array<{ id: string; name: string }>;
   callbackUrl: string;
+  logoutRedirectUrl: string;
+  singleLogout: boolean;
   publicUrl: string;
 }) {
   return (
@@ -170,6 +174,38 @@ export function OidcSettingsForm({
           <option value="2592000">30 days</option>
         </select>
       </Field>
+
+      <div className="sm:col-span-2 border-t border-surface-border pt-4">
+        <label className="flex items-start gap-2 text-sm text-slate-400">
+          <input
+            type="checkbox"
+            name="singleLogout"
+            defaultChecked={singleLogout}
+            className="mt-0.5 h-4 w-4"
+          />
+          <span>
+            Signing out ends the {displayName || "single sign-on"} session too
+            <span className="mt-0.5 block text-xs text-slate-600">
+              Without this, signing out clears only the portal&apos;s own cookie — the next visit
+              signs straight back in through SSO, which looks like the button doing nothing. Turn it
+              off if your provider doesn&apos;t support RP-initiated logout.
+            </span>
+          </span>
+        </label>
+
+        <div className="mt-3 rounded-md border border-surface-border bg-surface-base p-3">
+          <p className="text-xs text-slate-500">
+            Register this as an allowed <strong>post-logout redirect URI</strong> in your identity
+            provider, alongside the callback URI above:
+          </p>
+          <code className="mt-1 block break-all text-sm text-sky-300">{logoutRedirectUrl}</code>
+          <p className="mt-2 text-xs text-slate-600">
+            If it isn&apos;t registered you still get signed out of both — the portal session is
+            destroyed before the provider is ever contacted — but the provider will show its own
+            page at the end instead of returning here.
+          </p>
+        </div>
+      </div>
 
       <p className="text-xs text-slate-600 sm:col-span-2">
         Saving also probes the issuer and reports what it found. Clear the issuer and client ID and

@@ -176,6 +176,11 @@ export async function runMigrations() {
       "ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0"
     );
   }
+  if (!hasCol("oidc_id_token")) {
+    // Nullable with no default: existing sessions have no stored hint, so their
+    // first sign-out is local-only and the next sign-in fills it in.
+    await client.execute("ALTER TABLE users ADD COLUMN oidc_id_token TEXT");
+  }
 
   const serviceCols = await client.execute("PRAGMA table_info(services)");
   const hasServiceCol = (name: string) => serviceCols.rows.some((r) => r[1] === name);

@@ -16,6 +16,16 @@ export const users = sqliteTable("users", {
   // The only link key between a local account and an Authentik identity.
   // Never populated automatically from an email match.
   oidcSub: text("oidc_sub").unique(),
+  /**
+   * The last ID token this account signed in with, kept only as the
+   * `id_token_hint` for RP-initiated logout — it is what lets the identity
+   * provider end its own session without stopping to ask the user first.
+   *
+   * Held here rather than in the session cookie so the JWT keeps carrying only
+   * a user id, and so signing out can clear it. Overwritten on every sign-in
+   * and nulled on sign-out.
+   */
+  oidcIdToken: text("oidc_id_token"),
   displayName: text("display_name"),
   email: text("email"),
   isAdmin: integer("is_admin", { mode: "boolean" }).notNull().default(false),

@@ -75,6 +75,9 @@ export async function saveOidcSettings(
   const displayName = str(form, "displayName");
   const defaultGroupId = str(form, "defaultGroupId");
 
+  // An unchecked checkbox sends nothing at all, so absence is "off".
+  const singleLogout = form.get("singleLogout") !== null;
+
   const rawMaxAge = Number(str(form, "sessionMaxAge"));
   const sessionMaxAge = Number.isFinite(rawMaxAge) && rawMaxAge >= 300 ? rawMaxAge : DEFAULT_SESSION_MAX_AGE;
 
@@ -86,7 +89,13 @@ export async function saveOidcSettings(
   if (publicUrl === null) {
     return { ok: false, message: "The portal public URL must be a full http:// or https:// address." };
   }
-  await setSettings({ [SETTING_KEYS.publicUrl]: publicUrl });
+  // Saved on every path, including the disable branch below, for the same
+  // reason as the public URL: these are preferences about the form as a whole,
+  // and losing one because SSO was switched off in the same submit is a bug.
+  await setSettings({
+    [SETTING_KEYS.publicUrl]: publicUrl,
+    [SETTING_KEYS.oidcSingleLogout]: singleLogout ? "true" : "false",
+  });
 
   // Clearing issuer and client id turns SSO off; the local login remains.
   if (!rawIssuer && !clientId) {

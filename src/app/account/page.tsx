@@ -5,12 +5,17 @@ import { db } from "@/lib/db";
 import { groups, userGroups } from "@/lib/db/schema";
 import { Button, Panel } from "@/components/admin/ui";
 import { PasswordForm } from "@/components/AccountForms";
-import { signOut } from "@/auth";
+import { signOutEverywhere } from "@/lib/actions/session";
+import { getOidcConfig, getSingleLogout } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
 export default async function AccountPage() {
   const user = await requireUser();
+  const [oidc, singleLogout] = await Promise.all([getOidcConfig(), getSingleLogout()]);
+  // Only SSO accounts have a provider session to end; the local bootstrap
+  // account signs out here and nowhere else.
+  const endsProviderSession = oidc.enabled && singleLogout && !user.hasPassword;
 
   const memberships = await db
     .select({ name: groups.name })
@@ -85,15 +90,15 @@ export default async function AccountPage() {
       ) : null}
 
       <Panel title="Session">
-        <form
-          action={async () => {
-            "use server";
-            await signOut({ redirectTo: "/login" });
-          }}
-        >
+        <form action={signOutEverywhere}>
           <Button type="submit" variant="danger">
             Sign out
           </Button>
+          <p className="mt-2 text-xs text-slate-600">
+            {endsProviderSession
+              ? `Ends your ${oidc.displayName} session too, so you won't be signed straight back in.`
+              : "Ends your portal session on this device."}
+          </p>
         </form>
       </Panel>
     </main>
