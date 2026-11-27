@@ -1,6 +1,7 @@
 # Weekly pull requests for outdated npm packages and GitHub Actions, so security fixes are not missed.
-# CI runs the tests on each one; merge to ship. The Node base image is refreshed by the weekly
-# rebuild in docker.yml instead (it follows the node:26-slim tag).
+# CI runs the tests on each one; merge to ship. Minor and patch updates come together in one pull
+# request; each major upgrade gets its own, since those can need code changes. The Node base image
+# is refreshed by the weekly rebuild in docker.yml instead (it follows the node:26-slim tag).
 version: 2
 updates:
   - package-ecosystem: npm
@@ -10,6 +11,7 @@ updates:
     groups:
       npm:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
