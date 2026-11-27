@@ -14,13 +14,14 @@ export const dynamic = "force-dynamic";
  * aren't entitled to see just by knowing its id. An unauthorised id is a 404,
  * not a 403 — that way the URL doesn't confirm the service exists.
  */
-export default async function InfoPage({ params }: { params: { id: string } }) {
+export default async function InfoPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const user = await requireUser();
   const categories = await getVisibleServices(user);
 
   const service = categories
     .flatMap((category) => category.services)
-    .find((s) => s.id === params.id);
+    .find((s) => s.id === id);
 
   if (!service || service.kind !== "page") notFound();
 

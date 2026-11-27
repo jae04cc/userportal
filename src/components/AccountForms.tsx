@@ -1,6 +1,7 @@
 "use client";
 
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { changeOwnPassword, type AccountResult } from "@/lib/actions/account";
 import { Button, Field, inputClass } from "@/components/admin/ui";
 
@@ -14,7 +15,7 @@ function Submit({ label }: { label: string }) {
 }
 
 export function PasswordForm() {
-  const [state, action] = useFormState<AccountResult | null, FormData>(changeOwnPassword, null);
+  const [state, action] = useActionState<AccountResult | null, FormData>(changeOwnPassword, null);
 
   return (
     <form action={action} className="space-y-3">

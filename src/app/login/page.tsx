@@ -11,12 +11,13 @@ export const dynamic = "force-dynamic";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: { error?: string; local?: string };
+  searchParams: Promise<{ error?: string; local?: string }>;
 }) {
+  const query = await searchParams;
   if (await getCurrentUser()) redirect("/");
 
   const [oidc, branding] = await Promise.all([getOidcConfig(), getBranding()]);
-  const error = searchParams.error;
+  const error = query.error;
 
   // One mark, not both: this column is 24rem wide and stacking a banner above a
   // logo above the heading pushes the actual sign-in form below the fold on a
@@ -25,7 +26,7 @@ export default async function LoginPage({
 
   // The local form is always reachable — it's the break-glass path for the
   // bootstrap admin. It's just not the thing we lead with once SSO is set up.
-  const showLocalByDefault = !oidc.enabled || searchParams.local === "1";
+  const showLocalByDefault = !oidc.enabled || query.local === "1";
 
   /**
    * With SSO configured this page normally shouldn't be seen at all: someone
@@ -41,7 +42,7 @@ export default async function LoginPage({
    *                   the IdP authenticated them but the portal did not — a
    *                   suspended account, typically. Show the page, don't loop.
    */
-  const justTried = cookies().get(SSO_ATTEMPT_COOKIE) !== undefined;
+  const justTried = (await cookies()).get(SSO_ATTEMPT_COOKIE) !== undefined;
   if (oidc.enabled && !showLocalByDefault && !error && !justTried) {
     redirect("/api/sso");
   }

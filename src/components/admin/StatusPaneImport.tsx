@@ -1,6 +1,7 @@
 "use client";
 
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { importStatusItems, type ImportResult } from "@/lib/actions/statusPane";
 import { Button } from "./ui";
 import type { DiscoveredMonitor } from "@/lib/status/types";
@@ -21,7 +22,7 @@ export function StatusPaneImport({
   monitors: DiscoveredMonitor[];
   takenKeys: string[];
 }) {
-  const [state, formAction] = useFormState<ImportResult | null, FormData>(importStatusItems, null);
+  const [state, formAction] = useActionState<ImportResult | null, FormData>(importStatusItems, null);
 
   const taken = new Set(takenKeys);
   const available = monitors.filter((m) => !taken.has(m.id) && !taken.has(m.name));

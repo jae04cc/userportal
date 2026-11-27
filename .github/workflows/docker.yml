@@ -10,6 +10,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # Weekly rebuild without the layer cache, so security fixes in the Node base image and Debian
+  # packages reach the image even in weeks with no code changes. Pull & Redeploy to pick it up.
+  # Running the workflow by hand does the same, for a fix that should not wait for Monday.
+  schedule:
+    - cron: "23 9 * * 1"
 
 jobs:
   push:
@@ -41,6 +46,10 @@ jobs:
         with:
           context: .
           push: true
+          # Always start from the newest node:26-slim, and rebuild every layer on the weekly run
+          # and on a run started by hand.
+          pull: true
+          no-cache: ${{ github.event_name != 'push' }}
           tags: |
             ${{ steps.image.outputs.name }}:latest
             ${{ steps.image.outputs.name }}:${{ github.sha }}

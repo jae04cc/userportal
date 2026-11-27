@@ -19,25 +19,33 @@
     "clsx": "^2.1.0",
     "drizzle-orm": "^0.30.8",
     "lucide-react": "^0.363.0",
-    "next": "^14.2.0",
+    "next": "^15.5.29",
     "next-auth": "^5.0.0-beta.30",
-    "react": "^18",
-    "react-dom": "^18",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "react-markdown": "^10.1.0",
     "remark-breaks": "^4.0.0",
     "tailwind-merge": "^2.2.2"
   },
   "devDependencies": {
     "@types/node": "^20",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
+    "@types/react": "^19.3.3",
+    "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.0.1",
     "drizzle-kit": "^0.21.4",
     "eslint": "^8.57.1",
-    "eslint-config-next": "^14.2.35",
+    "eslint-config-next": "^15.5.29",
     "postcss": "^8",
     "tailwindcss": "^3.3.0",
     "typescript": "^5",
     "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "lucide-react": {
+      "react": "$react"
+    },
+    "next": {
+      "postcss": "^8.5.23"
+    }
   }
 }

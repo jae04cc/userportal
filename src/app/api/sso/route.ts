@@ -29,7 +29,7 @@ export async function GET(req: Request) {
     return NextResponse.redirect(new URL("/login?local=1", req.url));
   }
 
-  cookies().set(SSO_ATTEMPT_COOKIE, "1", {
+  (await cookies()).set(SSO_ATTEMPT_COOKIE, "1", {
     maxAge: SSO_ATTEMPT_TTL_SECONDS,
     httpOnly: true,
     sameSite: "lax",

@@ -29,7 +29,7 @@ export default async function AdminAuthenticationPage() {
   // A configured public URL wins, because that is exactly what sign-in will use.
   // Otherwise derive it from the request, which is right whenever the proxy
   // forwards the original host.
-  const h = headers();
+  const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost";
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   const origin = publicUrl ?? `${proto}://${host}`;

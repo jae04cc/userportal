@@ -14,7 +14,7 @@ export function KumaSettingsForm({
   showUptime: boolean;
 }) {
   return (
-    // The action is written for useFormState, so it takes a previous-state
+    // The action is written for useActionState, so it takes a previous-state
     // argument this form has no use for. The connection test it runs comes back
     // as a message and is reported by the save bar.
     <SaveForm

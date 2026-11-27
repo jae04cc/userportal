@@ -34,7 +34,7 @@ export function OidcSettingsForm({
   publicUrl: string;
 }) {
   return (
-    // Written for useFormState, hence the unused previous-state argument. The
+    // Written for useActionState, hence the unused previous-state argument. The
     // issuer probe it runs comes back as a message and is reported by the bar.
     <SaveForm
       action={(form) => saveOidcSettings(null, form)}

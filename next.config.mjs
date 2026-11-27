@@ -26,10 +26,9 @@ const csp = [
 const nextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  // libsql ships native/WASM bindings that must not be bundled by webpack
+  serverExternalPackages: ["@libsql/client", "libsql"],
   experimental: {
-    // libsql ships native/WASM bindings that must not be bundled by webpack
-    serverComponentsExternalPackages: ["@libsql/client", "libsql"],
-
     /**
      * Don't reuse cached page data when navigating.
      *

@@ -1,6 +1,7 @@
 "use client";
 
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { importKumaMonitors, type ActionResult } from "@/lib/actions/monitoring";
 import { Button } from "./ui";
 import type { DiscoveredMonitor } from "@/lib/status/types";
@@ -22,7 +23,7 @@ export function KumaImport({
   /** Monitor ids/names already bound to a service, shown as already imported. */
   boundKeys: string[];
 }) {
-  const [state, formAction] = useFormState<ActionResult | null, FormData>(importKumaMonitors, null);
+  const [state, formAction] = useActionState<ActionResult | null, FormData>(importKumaMonitors, null);
 
   const bound = new Set(boundKeys);
   const groups = new Map<string, DiscoveredMonitor[]>();

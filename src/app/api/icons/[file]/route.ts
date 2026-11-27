@@ -8,11 +8,11 @@ export const dynamic = "force-dynamic";
  * Serves uploaded service icons. Requires a signed-in user — icons are part of
  * the portal's private surface and shouldn't be enumerable anonymously.
  */
-export async function GET(_req: Request, { params }: { params: { file: string } }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ file: string }> }) {
   const user = await getCurrentUser();
   if (!user) return new NextResponse("Not signed in", { status: 401 });
 
-  const icon = await readIcon(params.file);
+  const icon = await readIcon((await params).file);
   if (!icon) return new NextResponse("Not found", { status: 404 });
 
   // Buffer -> Uint8Array so it satisfies BodyInit under the DOM lib's types.

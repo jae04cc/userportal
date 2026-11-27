@@ -36,8 +36,8 @@ const VARIANTS: Record<string, { size: number; padded: boolean; custom: "png" | 
 // apps only re-read it occasionally anyway.
 const CACHE_CONTROL = "public, max-age=300";
 
-export async function GET(_req: Request, { params }: { params: { variant: string } }) {
-  const spec = VARIANTS[params.variant];
+export async function GET(_req: Request, { params }: { params: Promise<{ variant: string }> }) {
+  const spec = VARIANTS[(await params).variant];
   if (!spec) return new NextResponse("Not found", { status: 404 });
 
   if (spec.custom !== "none") {

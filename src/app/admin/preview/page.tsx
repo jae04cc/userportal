@@ -22,15 +22,12 @@ export const dynamic = "force-dynamic";
 export default async function AdminPreviewPage({
   searchParams,
 }: {
-  searchParams: { group?: string | string[] };
+  searchParams: Promise<{ group?: string | string[] }>;
 }) {
+  const { group } = await searchParams;
   const allGroups = await db.select().from(groups).orderBy(asc(groups.sortOrder), asc(groups.name));
 
-  const requested = Array.isArray(searchParams.group)
-    ? searchParams.group
-    : searchParams.group
-      ? [searchParams.group]
-      : [];
+  const requested = Array.isArray(group) ? group : group ? [group] : [];
 
   // Only ids that still exist — a stale link shouldn't silently preview as a
   // group that has since been deleted.
